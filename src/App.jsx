@@ -350,7 +350,7 @@ export default function App() {
       )}
       {view === "staffAuth" && (
         <StaffAuth staffPwd={staffPwd} setStaffPwd={setStaffPwd}
-          onAuth={() => { if (staffPwd === STAFF_PASSWORD) { setStaffAuth(true); changeView("staff"); } }}
+          onAuth={() => { if (staffPwd === STAFF_PASSWORD) { setStaffAuth(true); setView("staff"); } }}
           setView={setView} />
       )}
       {view === "staff" && staffAuth && (
@@ -494,7 +494,7 @@ function Home({ setView }) {
             color:"#fff",
             border:"1px solid rgba(200,168,75,0.3)",
             boxShadow:"0 4px 20px rgba(0,35,149,0.4)",
-          }} onClick={() => changeView("player")}>
+          }} onClick={() => setView("player")}>
             <span style={{fontSize:20}}>⚽</span>
             <span>Je suis un joueur</span>
           </button>
@@ -504,7 +504,7 @@ function Home({ setView }) {
             color:"#fff",
             border:"1px solid rgba(200,168,75,0.3)",
             boxShadow:"0 4px 20px rgba(237,41,57,0.3)",
-          }} onClick={() => changeView("staffAuth")}>
+          }} onClick={() => setView("staffAuth")}>
             <span style={{fontSize:20}}>🩺</span>
             <span>Staff médical</span>
           </button>
@@ -598,7 +598,7 @@ function PlayerView({
           <button style={{...css.btn,...css.btnPlayer,marginTop:24}} onClick={() => setConfirmation(null)}>
             Faire une autre réservation
           </button>
-          <button style={css.btnLink} onClick={() => changeView("home")}>← Accueil</button>
+          <button style={css.btnLink} onClick={() => setView("home")}>← Accueil</button>
         </div>
       </div>
     );
@@ -607,7 +607,7 @@ function PlayerView({
   return (
     <div style={css.pageWrap}>
       <div style={css.pageHeader}>
-        <button style={css.backBtn} onClick={() => changeView("home")}>←</button>
+        <button style={css.backBtn} onClick={() => setView("home")}>←</button>
         <h2 style={css.pageTitle}>Réserver un soin</h2>
         <button style={{...css.badgePill,background:future.length>0?"rgba(255,255,255,0.25)":"rgba(255,255,255,0.12)"}}
           onClick={() => setShowMy(!showMy)}>
@@ -1141,7 +1141,7 @@ function StaffAuth({ staffPwd, setStaffPwd, onAuth, setView }) {
           value={staffPwd} onChange={e=>setStaffPwd(e.target.value)}
           onKeyDown={e=>e.key==="Enter"&&onAuth()} />
         <button style={{...css.btn,...css.btnStaff,width:"100%",marginTop:8}} onClick={onAuth}>Connexion</button>
-        <button style={css.btnLink} onClick={()=>changeView("home")}>← Retour</button>
+        <button style={css.btnLink} onClick={()=>setView("home")}>← Retour</button>
         <p style={{fontSize:11,opacity:0.4,marginTop:16}}>Mot de passe démo : staff2024</p>
       </div>
     </div>
@@ -1186,7 +1186,7 @@ function StaffView({ practitioners, days, dayOffset, setDayOffset, staffPract, s
   return (
     <div style={css.pageWrap}>
       <div style={css.pageHeader}>
-        <button style={css.backBtn} onClick={()=>changeView("home")}>←</button>
+        <button style={css.backBtn} onClick={()=>setView("home")}>←</button>
         <h2 style={css.pageTitle}>Gestion — Vue du jour</h2>
         <div style={css.staffBadge}>Staff ✓</div>
       </div>
