@@ -5,7 +5,6 @@ const SUPABASE_URL = "https://khueuwkglmtvoqctyaor.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtodWV1d2tnbG10dm9xY3R5YW9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTYzNDQsImV4cCI6MjA5MzAzMjM0NH0.To75-XcGQtig_Q4M5YqFqqN8yMAzJGsqXhlZQzU5Ckg";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-
 // ─── DATA ──────────────────────────────────────────────────────────────────────
 const PRACTITIONERS = [
   { id: "k1", name: "Guillaume", role: "kiné",  color: "#4fc3f7", initials: "GU" },
@@ -92,17 +91,48 @@ function isWithinBookingWindow(date, time) {
 const DAY_NAMES = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
 
 // ═══════════════════════════════════════════════════════════════════════════════
-function AppLocal() {
+export default function App() {
   const [view, setView] = useState("home");
 
-  // Slot state — all closed by default
-  const [open,       setOpen]       = useState({});  // { [slotKey]: true }
-  const [recurring,  setRecurring]  = useState({});  // { [recurKey]: true }
-  const [closed,     setClosed]     = useState({});  // { [slotKey]: true } overrides recurring
-  const [bookings,   setBookings]   = useState({});  // { [slotKey]: { player, locked, ts } }
-  // Split slots: { [baseTime]: true } — per-practitioner per-date
-  // key: `${practId}|${date}|${baseTime}` → true
+  // Supabase state — synced from DB
+  const [open,       setOpen]       = useState({});
+  const [recurring,  setRecurring]  = useState({});
+  const [closed,     setClosed]     = useState({});
+  const [bookings,   setBookings]   = useState({});
   const [splitSlots, setSplitSlots] = useState({});
+  const [dbReady,    setDbReady]    = useState(false);
+
+  const loadAll = useCallback(async () => {
+    try {
+      const [o,c,r,s,b] = await Promise.all([
+        supabase.from("open_slots").select("*"),
+        supabase.from("closed_slots").select("*"),
+        supabase.from("recurring_slots").select("*"),
+        supabase.from("split_slots").select("*"),
+        supabase.from("bookings").select("*"),
+      ]);
+      const om={}; (o.data||[]).forEach(x=>{om[`${x.pract_id}|${x.date}|${x.time}`]=true;});
+      const cm={}; (c.data||[]).forEach(x=>{cm[`${x.pract_id}|${x.date}|${x.time}`]=true;});
+      const rm={}; (r.data||[]).forEach(x=>{rm[`${x.pract_id}|dow${x.dow}|${x.time}`]=true;});
+      const sm={}; (s.data||[]).forEach(x=>{sm[`${x.pract_id}|${x.date}|${x.base_time}`]=true;});
+      const bm={}; (b.data||[]).forEach(x=>{bm[`${x.pract_id}|${x.date}|${x.time}`]={player:x.player,locked:x.locked,note:x.note||"",duration:x.duration||60};});
+      setOpen(om); setClosed(cm); setRecurring(rm); setSplitSlots(sm); setBookings(bm);
+      setDbReady(true);
+    } catch(e) { console.warn("Supabase:",e.message); setDbReady(true); }
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  useEffect(() => {
+    const ch = supabase.channel("sync")
+      .on("postgres_changes",{event:"*",schema:"public",table:"open_slots"},loadAll)
+      .on("postgres_changes",{event:"*",schema:"public",table:"closed_slots"},loadAll)
+      .on("postgres_changes",{event:"*",schema:"public",table:"recurring_slots"},loadAll)
+      .on("postgres_changes",{event:"*",schema:"public",table:"split_slots"},loadAll)
+      .on("postgres_changes",{event:"*",schema:"public",table:"bookings"},loadAll)
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [loadAll]);
 
   // Navigation: dayOffset from today (steps of 7)
   const [dayOffset,  setDayOffset]  = useState(0);
@@ -130,6 +160,13 @@ function AppLocal() {
   const kines  = PRACTITIONERS.filter(p => p.role === "kiné");
   const osteos = PRACTITIONERS.filter(p => p.role === "ostéo");
 
+  if (!dbReady) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#f0f4ff"}}>
+      <FFFShield size={70}/>
+      <div style={{color:"#002395",fontWeight:700,fontSize:16}}>Chargement…</div>
+    </div>
+  );
+
   // ── split slot helpers ────────────────────────────────────────────────────────
   function splitKey(practId, date, baseTime) { return `${practId}|${date}|${baseTime}`; }
 
@@ -137,9 +174,14 @@ function AppLocal() {
     return !!splitSlots[splitKey(practId, date, baseTime)];
   }
 
-  function toggleSplit(practId, date, baseTime) {
+  async function toggleSplit(practId, date, baseTime) {
     const k = splitKey(practId, date, baseTime);
-    setSplitSlots(s => { const n={...s}; if(n[k]) delete n[k]; else n[k]=true; return n; });
+    if (splitSlots[k]) {
+      await supabase.from("split_slots").delete().match({pract_id:practId, date, base_time:baseTime});
+    } else {
+      await supabase.from("split_slots").upsert({pract_id:practId, date, base_time:baseTime});
+    }
+    await loadAll();
   }
 
   // Build the time slots for a given pract+date context
@@ -190,34 +232,42 @@ function AppLocal() {
   }
 
   // ── staff slot actions ────────────────────────────────────────────────────────
-  function toggleOpen(practId, date, time) {
+  async function toggleOpen(practId, date, time) {
     const sk = slotKey(practId, date, time);
     const rk = recurKey(practId, dowOf(date), time);
     if (isSlotOpen(practId, date, time)) {
       if (recurring[rk] && !open[sk]) {
-        setClosed(c => ({ ...c, [sk]: true }));
+        await supabase.from("closed_slots").upsert({pract_id:practId, date, time});
       } else {
-        setOpen(o => { const n={...o}; delete n[sk]; return n; });
-        setClosed(c => { const n={...c}; delete n[sk]; return n; });
+        await supabase.from("open_slots").delete().match({pract_id:practId, date, time});
+        await supabase.from("closed_slots").delete().match({pract_id:practId, date, time});
       }
     } else {
-      setClosed(c => { const n={...c}; delete n[sk]; return n; });
-      setOpen(o => ({ ...o, [sk]: true }));
+      await supabase.from("closed_slots").delete().match({pract_id:practId, date, time});
+      await supabase.from("open_slots").upsert({pract_id:practId, date, time});
     }
+    await loadAll();
   }
 
-  function toggleRecurring(practId, date, time) {
-    const rk = recurKey(practId, dowOf(date), time);
+  async function toggleRecurring(practId, date, time) {
+    const dow = dowOf(date);
+    const rk = recurKey(practId, dow, time);
     const sk = slotKey(practId, date, time);
-    setRecurring(r => { const n={...r}; if(n[rk]) delete n[rk]; else n[rk]=true; return n; });
-    setClosed(c => { const n={...c}; delete n[sk]; return n; });
+    if (recurring[rk]) {
+      await supabase.from("recurring_slots").delete().match({pract_id:practId, dow, time});
+    } else {
+      await supabase.from("recurring_slots").upsert({pract_id:practId, dow, time});
+      await supabase.from("closed_slots").delete().match({pract_id:practId, date, time});
+    }
+    await loadAll();
   }
 
-  function staffBookSlot(practId, date, time, player) {
-    const sk = slotKey(practId, date, time);
-    setClosed(c => { const n={...c}; delete n[sk]; return n; });
-    setOpen(o => ({ ...o, [sk]: true }));
-    setBookings(b => ({ ...b, [sk]: { player, locked: true, ts: Date.now() } }));
+  async function staffBookSlot(practId, date, time, player) {
+    const is30 = time.endsWith(":30") || isSplit(practId, date, time);
+    await supabase.from("open_slots").upsert({pract_id:practId, date, time});
+    await supabase.from("closed_slots").delete().match({pract_id:practId, date, time});
+    await supabase.from("bookings").upsert({pract_id:practId, date, time, player, locked:true, note:"", duration:is30?30:60});
+    await loadAll();
   }
 
   function unbook(practId, date, time) {
@@ -227,33 +277,27 @@ function AppLocal() {
     setBookings(b => { const n={...b}; delete n[slotKey(practId,date,time)]; return n; });
   }
 
-  function addNote(practId, date, time, note) {
-    const sk = slotKey(practId, date, time);
-    setBookings(b => ({ ...b, [sk]: { ...b[sk], note } }));
+  async function addNote(practId, date, time, note) {
+    await supabase.from("bookings").update({note}).match({pract_id:practId, date, time});
+    await loadAll();
   }
 
-  // Move a booking from one pract to another (same date/time)
-  function moveBooking(fromPractId, date, time, toPractId) {
-    const sk_from = slotKey(fromPractId, date, time);
-    const sk_to   = slotKey(toPractId,   date, time);
-    setBookings(b => {
-      const bk = { ...b[sk_from] };
-      const n  = { ...b };
-      delete n[sk_from];
-      n[sk_to] = bk;
-      return n;
-    });
-    // Force-open the target slot
-    setClosed(c => { const n={...c}; delete n[sk_to]; return n; });
-    setOpen(o => ({ ...o, [sk_to]: true }));
+  async function moveBooking(fromPractId, date, time, toPractId) {
+    const bk = getBooking(fromPractId, date, time);
+    if (!bk) return;
+    await supabase.from("bookings").delete().match({pract_id:fromPractId, date, time});
+    await supabase.from("open_slots").upsert({pract_id:toPractId, date, time});
+    await supabase.from("closed_slots").delete().match({pract_id:toPractId, date, time});
+    await supabase.from("bookings").upsert({pract_id:toPractId, date, time, player:bk.player, locked:bk.locked, note:bk.note, duration:bk.duration});
+    await loadAll();
   }
 
   // ── player booking ────────────────────────────────────────────────────────────
-  function confirmBooking() {
+  async function confirmBooking() {
     if (!playerName.trim() || !selectedPract || !selectedDate || !selectedTime) return;
-    const sk = slotKey(selectedPract, selectedDate, selectedTime);
     const is30 = selectedTime.endsWith(":30") || isSplit(selectedPract, selectedDate, selectedTime);
-    setBookings(b => ({ ...b, [sk]: { player: playerName.trim(), locked: false, ts: Date.now(), duration: is30 ? 30 : 60 } }));
+    await supabase.from("bookings").upsert({pract_id:selectedPract, date:selectedDate, time:selectedTime, player:playerName.trim(), locked:false, note:"", duration:is30?30:60});
+    await loadAll();
     const p = PRACTITIONERS.find(x => x.id === selectedPract);
     setConfirmation({ pract: p, date: selectedDate, time: selectedTime, player: playerName, duration: is30 ? 30 : 60 });
     setSelectedPract(null); setSelectedDate(null); setSelectedTime(null);
@@ -1622,153 +1666,6 @@ function NoteModal({ note, player, date, time, pract, onSave, onClose }) {
       </div>
     </div>
   );
-}
-
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXPORT DEFAULT — charge les données Supabase et synchronise en temps réel
-// ═══════════════════════════════════════════════════════════════════════════════
-export default function App() {
-  const [ready, setReady] = useState(false);
-
-  // Patch: on remplace les fonctions setState de AppLocal après le premier render
-  // en les faisant écrire dans Supabase ET en rechargeant l'état
-  useEffect(() => {
-    setReady(true);
-  }, []);
-
-  if (!ready) return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#f0f4ff"}}>
-      <div style={{color:"#002395",fontWeight:700,fontSize:16}}>Chargement…</div>
-    </div>
-  );
-
-  return <AppWithSupabase />;
-}
-
-function AppWithSupabase() {
-  const [open,       setOpen]       = useState({});
-  const [recurring,  setRecurring]  = useState({});
-  const [closed,     setClosed]     = useState({});
-  const [bookings,   setBookings]   = useState({});
-  const [splitSlots, setSplitSlots] = useState({});
-  const [synced,     setSynced]     = useState(false);
-
-  const loadAll = useCallback(async () => {
-    try {
-      const [o,c,r,s,b] = await Promise.all([
-        supabase.from("open_slots").select("*"),
-        supabase.from("closed_slots").select("*"),
-        supabase.from("recurring_slots").select("*"),
-        supabase.from("split_slots").select("*"),
-        supabase.from("bookings").select("*"),
-      ]);
-      const om={}; (o.data||[]).forEach(x=>{om[`${x.pract_id}|${x.date}|${x.time}`]=true;});
-      const cm={}; (c.data||[]).forEach(x=>{cm[`${x.pract_id}|${x.date}|${x.time}`]=true;});
-      const rm={}; (r.data||[]).forEach(x=>{rm[`${x.pract_id}|dow${x.dow}|${x.time}`]=true;});
-      const sm={}; (s.data||[]).forEach(x=>{sm[`${x.pract_id}|${x.date}|${x.base_time}`]=true;});
-      const bm={}; (b.data||[]).forEach(x=>{bm[`${x.pract_id}|${x.date}|${x.time}`]={player:x.player,locked:x.locked,note:x.note||"",duration:x.duration||60};});
-      setOpen(om); setClosed(cm); setRecurring(rm); setSplitSlots(sm); setBookings(bm);
-      setSynced(true);
-    } catch(e) { console.warn("Supabase:", e.message); setSynced(true); }
-  }, []);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
-
-  useEffect(() => {
-    const ch = supabase.channel("sync")
-      .on("postgres_changes",{event:"*",schema:"public",table:"open_slots"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"closed_slots"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"recurring_slots"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"split_slots"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"bookings"},loadAll)
-      .subscribe();
-    return () => supabase.removeChannel(ch);
-  }, [loadAll]);
-
-  if (!synced) return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,background:"#f0f4ff"}}>
-      <div style={{color:"#002395",fontWeight:700,fontSize:16}}>Chargement…</div>
-    </div>
-  );
-
-  // Supabase write helpers
-  const dow = (d) => (new Date(d+"T12:00:00").getDay()+6)%7;
-
-  async function sToggleOpen(practId, date, time) {
-    const sk=`${practId}|${date}|${time}`, rk=`${practId}|dow${dow(date)}|${time}`;
-    const isOpen = !closed[sk] && (open[sk]||recurring[rk]);
-    if (isOpen) {
-      if (recurring[rk]&&!open[sk]) await supabase.from("closed_slots").upsert({pract_id:practId,date,time});
-      else {
-        await supabase.from("open_slots").delete().match({pract_id:practId,date,time});
-        await supabase.from("closed_slots").delete().match({pract_id:practId,date,time});
-      }
-    } else {
-      await supabase.from("closed_slots").delete().match({pract_id:practId,date,time});
-      await supabase.from("open_slots").upsert({pract_id:practId,date,time});
-    }
-    await loadAll();
-  }
-
-  async function sToggleRecurring(practId, date, time) {
-    const d=dow(date), rk=`${practId}|dow${d}|${time}`;
-    if (recurring[rk]) await supabase.from("recurring_slots").delete().match({pract_id:practId,dow:d,time});
-    else {
-      await supabase.from("recurring_slots").upsert({pract_id:practId,dow:d,time});
-      await supabase.from("closed_slots").delete().match({pract_id:practId,date,time});
-    }
-    await loadAll();
-  }
-
-  async function sToggleSplit(practId, date, baseTime) {
-    const k=`${practId}|${date}|${baseTime}`;
-    if (splitSlots[k]) await supabase.from("split_slots").delete().match({pract_id:practId,date,base_time:baseTime});
-    else await supabase.from("split_slots").upsert({pract_id:practId,date,base_time:baseTime});
-    await loadAll();
-  }
-
-  async function sStaffBook(practId, date, time, player) {
-    await supabase.from("open_slots").upsert({pract_id:practId,date,time});
-    await supabase.from("closed_slots").delete().match({pract_id:practId,date,time});
-    await supabase.from("bookings").upsert({pract_id:practId,date,time,player,locked:true,note:"",duration:60});
-    await loadAll();
-  }
-
-  async function sPlayerBook(practId, date, time, player, duration) {
-    await supabase.from("bookings").upsert({pract_id:practId,date,time,player,locked:false,note:"",duration:duration||60});
-    await loadAll();
-  }
-
-  async function sUnbook(practId, date, time) {
-    const today=new Date().toISOString().split("T")[0];
-    if (date<today) return;
-    await supabase.from("bookings").delete().match({pract_id:practId,date,time});
-    await loadAll();
-  }
-
-  async function sAddNote(practId, date, time, note) {
-    await supabase.from("bookings").update({note}).match({pract_id:practId,date,time});
-    await loadAll();
-  }
-
-  async function sMoveBooking(fromId, date, time, toId) {
-    const bk=bookings[`${fromId}|${date}|${time}`]; if(!bk) return;
-    await supabase.from("bookings").delete().match({pract_id:fromId,date,time});
-    await supabase.from("open_slots").upsert({pract_id:toId,date,time});
-    await supabase.from("closed_slots").delete().match({pract_id:toId,date,time});
-    await supabase.from("bookings").upsert({pract_id:toId,date,time,player:bk.player,locked:bk.locked,note:bk.note,duration:bk.duration});
-    await loadAll();
-  }
-
-  return <AppLocal
-    _supaOpen={open} _supaClosed={closed} _supaRecurring={recurring}
-    _supaBookings={bookings} _supaSplitSlots={splitSlots}
-    _supaToggleOpen={sToggleOpen} _supaToggleRecurring={sToggleRecurring}
-    _supaToggleSplit={sToggleSplit} _supaStaffBook={sStaffBook}
-    _supaPlayerBook={sPlayerBook} _supaUnbook={sUnbook}
-    _supaAddNote={sAddNote} _supaMoveBooking={sMoveBooking}
-  />;
 }
 
 // ─── THEME CONSTANTS (Light) ──────────────────────────────────────────────────
