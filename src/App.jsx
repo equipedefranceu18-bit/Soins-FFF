@@ -1802,6 +1802,6 @@ const globalStyles = `
   ::-webkit-scrollbar-thumb { background: rgba(0,35,149,0.25); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(0,35,149,0.45); }
   select option { background: #ffffff; color: #0a1440; }
-  button:hover { opacity: 0.88; }
+  button:hover { opacity: 0.88; } 
   button:disabled { opacity: 0.35 !important; cursor: default !important; }
 `;
