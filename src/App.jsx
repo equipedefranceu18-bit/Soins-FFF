@@ -882,7 +882,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     const avail   = isAvailable(p.id, d, time);
     const sel     = selectedPract===p.id && selectedDate===d && selectedTime===time;
     const blocked = !booked && playerHasBookingAt(time);
-    const label   = forceLabel || (time.endsWith(":30") ? "30'" : "1h");
+    const label   = forceLabel === "1h" ? "1h" : forceLabel?.includes(":") ? forceLabel : (time.endsWith(":30") ? "30'" : "1h");
 
     let bg, border, textColor, cursor;
     if (booked)               { bg="#ebebeb"; border="#ccc";    textColor="#bbb"; cursor="not-allowed"; }
@@ -1020,7 +1020,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
               if (!hasThis && !hasNext) return <div key={p.id} style={{minWidth:44,flexShrink:0}}/>;
               const hasPair = hasThis && hasNext;
               const clickTime = hasThis ? time : nextTime;
-              return <Btn key={p.id} p={p} time={clickTime} h={hasPair?H1:H2} forceLabel={hasPair?"1h":"30'"} />;
+              return <Btn key={p.id} p={p} time={clickTime} h={hasPair?H1:H2} forceLabel={hasPair?"1h":clickTime} />;
             })}
             {!kines.some(p=>(isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))||(isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime)))&&
               <span style={{fontSize:11,opacity:0.15}}>—</span>}
@@ -1033,7 +1033,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
               if (!hasThis && !hasNext) return null;
               const hasPair = hasThis && hasNext;
               const clickTime = hasThis ? time : nextTime;
-              return <Btn key={p.id} p={p} time={clickTime} h={hasPair?H1:H2} forceLabel={hasPair?"1h":"30'"} />;
+              return <Btn key={p.id} p={p} time={clickTime} h={hasPair?H1:H2} forceLabel={hasPair?"1h":clickTime} />;
             })}
             {!osteos.some(p=>(isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))||(isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime)))&&
               <span style={{fontSize:9,opacity:0.12}}>—</span>}
