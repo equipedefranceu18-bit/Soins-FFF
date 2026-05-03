@@ -997,7 +997,6 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     else if (sel)             { bg=p.color;   border=p.color;   textColor="#fff"; cursor="pointer"; }
     else                      { bg=p.color+"25"; border=p.color; textColor=p.color; cursor="pointer"; }
 
-    const hasStrap = strapSlots && strapSlots[`${d}|${time}`];
     return (
       <div key={`${p.id}-${time}`} style={{
         gridRow: `${rowIdx + 1} / span ${span}`,
@@ -1018,10 +1017,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
             {label}
           </span>
         </button>
-        {hasStrap && (
-          <div style={{position:"absolute",top:2,right:2,background:STRAP_COLOR,color:"#fff",
-            borderRadius:4,fontSize:7,fontWeight:800,padding:"1px 3px",lineHeight:1.4,pointerEvents:"none",zIndex:1}}>🩹</div>
-        )}
+
       </div>
     );
   }
@@ -1163,27 +1159,20 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     return (
       <div style={{
         display:"grid", gridTemplateRows: gridRows,
-        flex:1, minWidth:52,
+        flex:1, minWidth:60,
         background: STRAP_COLOR+"08",
       }}>
-        {baseTimes.map((time, i) => {
-          const isHour = time.endsWith(":00");
-          const hasStrap = strapSlots && strapSlots[`${d}|${time}`];
-          const rowIdx = i;
-          const sel = strapTimes.includes(time) && selectedPract === "strap" && selectedDate === d && selectedTime === time;
-          return (
-            <div key={`bg-strap-${time}`} style={{
-              gridRow: i+1, gridColumn:1,
-              borderBottom: isHour ? `2px solid ${T.border}` : `1px solid ${T.border2}`,
-              background: isHour ? STRAP_COLOR+"08" : STRAP_COLOR+"05",
-              opacity: past ? 0.45 : 1,
-            }} />
-          );
-        })}
+        {baseTimes.map((time, i) => (
+          <div key={`bg-strap-${time}`} style={{
+            gridRow: i+1, gridColumn:1,
+            borderBottom: time.endsWith(":00") ? `2px solid ${T.border}` : `1px solid ${T.border2}`,
+            background: time.endsWith(":00") ? STRAP_COLOR+"08" : STRAP_COLOR+"05",
+            opacity: past ? 0.45 : 1,
+          }} />
+        ))}
         {strapTimes.map(time => {
           const rowIdx = baseTimes.indexOf(time);
           if (rowIdx < 0) return null;
-          const sel = selectedPract === "strap" && selectedDate === d && selectedTime === time;
           return (
             <div key={`strap-${time}`} style={{
               gridRow: rowIdx+1,
@@ -1191,16 +1180,13 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
             }}>
               <button style={{
                 width:"100%", height:ROW-6, borderRadius:10,
-                background: sel ? STRAP_COLOR : STRAP_COLOR+"25",
+                background: STRAP_COLOR+"25",
                 border: `2px solid ${STRAP_COLOR}`,
-                cursor:"pointer",
+                cursor:"default",
                 display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
-                transition:"all 0.15s",
-              }}
-                onClick={() => onSlotClick("strap", d, time)}
-                title="Créneau Straps — 30 min">
-                <span style={{fontSize:13}}>🩹</span>
-                <span style={{fontSize:7, fontWeight:800, color: sel ? "#fff" : STRAP_COLOR}}>30'</span>
+              }} title="Créneau Straps — 30 min">
+                <span style={{fontSize:9, fontWeight:800, color:STRAP_COLOR}}>🩹 Straps</span>
+                <span style={{fontSize:7, color:STRAP_COLOR+"99", fontWeight:600}}>30'</span>
               </button>
             </div>
           );
