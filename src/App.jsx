@@ -14,15 +14,6 @@ const PRACTITIONERS = [
   { id: "o1", name: "Jean-Yves", role: "ostéo", color: "#ce93d8", initials: "JY" },
 ];
 
-// Straps : créneau spécial multi-joueurs (2 places par slot)
-const STRAP_COLOR = "#ff7043";
-const STRAP_IDS = ["s1", "s2"]; // 2 places par créneau
-const STRAP_PRACTS = [
-  { id: "s1", name: "Straps", role: "strap", color: STRAP_COLOR, initials: "ST" },
-  { id: "s2", name: "Straps", role: "strap", color: STRAP_COLOR, initials: "ST" },
-];
-function isStrap(practId) { return practId === "s1" || practId === "s2"; }
-
 const PLAYERS = [
   "A. Dupont","B. Girard","C. Petit","D. Leroy","E. Moreau",
   "F. Simon","G. Michel","H. Lefebvre","I. Lefevre","J. Garcia",
@@ -323,8 +314,7 @@ export default function App() {
   // ── player booking ────────────────────────────────────────────────────────────
   async function confirmBooking() {
     if (!playerName.trim() || !selectedPract || !selectedDate || !selectedTime) return;
-    const isStrapBooking = isStrap(selectedPract);
-    const is30 = isStrapBooking || selectedTime.endsWith(":30") || isSplit(selectedPract, selectedDate, selectedTime);
+    const is30 = selectedTime.endsWith(":30") || isSplit(selectedPract, selectedDate, selectedTime);
     await supabase.from("bookings").upsert({pract_id:selectedPract, date:selectedDate, time:selectedTime, player:playerName.trim(), locked:false, note:"", duration:is30?30:60});
     await loadAll();
     const p = PRACTITIONERS.find(x => x.id === selectedPract);
@@ -599,9 +589,9 @@ function PlayerView({
     if (!isAvailable(pId, date, time)) return;
     if (!playerName.trim()) return;
 
-    // Vérifier si le joueur a déjà un RDV ce jour-là (hors straps)
-    const existing = mb.find(b => b.date === date && !isStrap(b.pId));
-    if (existing && !isStrap(pId) && !(existing.date === selectedDate && existing.pId === selectedPract)) {
+    // Vérifier si le joueur a déjà un RDV ce jour-là
+    const existing = mb.find(b => b.date === date);
+    if (existing && !(existing.date === selectedDate && existing.pId === selectedPract)) {
       const existPract = PRACTITIONERS.find(x => x.id === existing.pId);
       setDoubleBookingAlert({ date, existingPract: existPract, existingTime: existing.time });
       return;
@@ -772,7 +762,7 @@ function PlayerView({
         <div style={css.confirmBar}>
           <div style={{fontSize:13}}>
             <div style={{opacity:0.9,color:"#fff"}}>
-              <strong>{isStrap(selectedPract) ? "🩹 Straps" : PRACTITIONERS.find(x=>x.id===selectedPract)?.name}</strong>
+              <strong>{PRACTITIONERS.find(x=>x.id===selectedPract)?.name}</strong>
               {" · "}{fmtLong(selectedDate)} · {selectedTime}
             </div>
             {(selectedTime?.endsWith(":30") || isSplit(selectedPract, selectedDate, selectedTime)) && (
@@ -1117,86 +1107,6 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     );
   }
 
-  // Straps: fusionner les 2 places en une colonne unique pour le joueur
-  // Afficher "Straps" neutre si au moins une place est disponible
-  function StrapColumn() {
-    // Collecter tous les times où au moins une place strap est ouverte
-    const strapTimes = [...new Set(
-      STRAP_IDS.flatMap(sid => getSlotsForContext(sid, d))
-    )].filter(t => baseTimes.includes(t)).sort();
-
-    return (
-      <div style={{
-        display:"grid", gridTemplateRows: gridRows,
-        flex:1, minWidth:60,
-        background: STRAP_COLOR+"08",
-      }}>
-        {baseTimes.map((time, i) => (
-          <div key={`bg-${time}`} style={{
-            gridRow: i+1, gridColumn:1,
-            borderBottom: time.endsWith(":00") ? `2px solid ${T.border}` : `1px solid ${T.border2}`,
-            background: time.endsWith(":00") ? STRAP_COLOR+"08" : STRAP_COLOR+"05",
-          }} />
-        ))}
-        {strapTimes.map(time => {
-          // Compter les places disponibles vs réservées
-          const slots = STRAP_IDS.map(sid => ({
-            id: sid,
-            open: isSlotOpen(sid, d, time),
-            booking: getBooking(sid, d, time),
-            avail: isAvailable(sid, d, time),
-          }));
-          const availSlot = slots.find(s => s.avail && !s.booking);
-          const bookedByPlayer = slots.find(s => s.booking?.player === (selectedPract ? "" : ""));
-          const allFull = slots.every(s => !!s.booking);
-          const rowIdx = timeToRow(time);
-          const sel = STRAP_IDS.some(sid => selectedPract===sid && selectedDate===d && selectedTime===time);
-
-          if (!availSlot && !allFull) return null;
-
-          return (
-            <div key={time} style={{
-              gridRow: rowIdx+1,
-              display:"flex", alignItems:"center", justifyContent:"center", padding:"2px 4px",
-            }}>
-              <button style={{
-                width:"100%", height:ROW*1-6, borderRadius:10,
-                background: allFull ? STRAP_COLOR+"22" : sel ? STRAP_COLOR : STRAP_COLOR+"18",
-                border: `2px solid ${allFull ? STRAP_COLOR+"66" : sel ? STRAP_COLOR : STRAP_COLOR}`,
-                cursor: allFull ? "not-allowed" : "pointer",
-                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1,
-                transition:"all 0.15s",
-              }}
-                onClick={() => {
-                  if (allFull || !availSlot) return;
-                  if (!playerName?.trim()) return;
-                  // Trouver le bon slot strap à sélectionner
-                  const alreadySel = STRAP_IDS.some(sid => selectedPract===sid && selectedDate===d && selectedTime===time);
-                  if (alreadySel) {
-                    onSlotClick(availSlot.id, d, time);
-                  } else {
-                    onSlotClick(availSlot.id, d, time);
-                  }
-                }}
-                title={allFull ? "Complet" : `Straps — ${slots.filter(s=>!s.booking).length} place(s) libre(s)`}>
-                <span style={{fontSize:11, fontWeight:800, color: allFull ? STRAP_COLOR+"99" : sel?"#fff":STRAP_COLOR}}>🩹</span>
-                <span style={{fontSize:8, fontWeight:700, color: allFull ? STRAP_COLOR+"88" : sel?"rgba(255,255,255,0.9)":STRAP_COLOR+"cc"}}>
-                  {allFull ? "Complet" : `Straps`}
-                </span>
-                {!allFull && (
-                  <span style={{fontSize:7, color:STRAP_COLOR+"88"}}>
-                    {slots.filter(s=>!s.booking).length}/2 libre{slots.filter(s=>!s.booking).length>1?"s":""}
-                  </span>
-                )}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  const SEP2 = `2px solid ${STRAP_COLOR}44`;
   const header = (
     <div style={{display:"flex", height:48, background:T.surface3, borderBottom:`2px solid ${T.border}`}}>
       <div style={{width:64, flexShrink:0, borderRight:`1px solid ${T.border}`}} />
@@ -1206,15 +1116,9 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         <span style={{fontSize:12, fontWeight:700, color:T.textMid}}>💆 Kinésithérapie</span>
         <span style={{fontSize:10, color:T.textDim}}>{kines.map(k=>k.name).join(" · ")}</span>
       </div>
-      <div style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-        background:"#f5eeff", borderRight:SEP}}>
+      <div style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#f5eeff"}}>
         <span style={{fontSize:12, fontWeight:700, color:"#9c27b0"}}>🦴 Ostéo</span>
         <span style={{fontSize:10, color:T.textDim}}>Jean-Yves</span>
-      </div>
-      <div style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-        background:STRAP_COLOR+"12"}}>
-        <span style={{fontSize:14}}>🩹</span>
-        <span style={{fontSize:11, fontWeight:800, color:STRAP_COLOR}}>Straps</span>
       </div>
     </div>
   );
@@ -1225,17 +1129,13 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         {header}
         <div style={{display:"flex"}}>
           {timeAxis}
-          {/* Colonnes kinés */}
+          {/* Colonnes kinés groupées sous un flex */}
           <div style={{flex:4, display:"flex", borderRight:SEP}}>
             {kines.map(p => <KineColumn key={p.id} p={p} />)}
           </div>
-          {/* Colonne ostéo */}
-          <div style={{flex:1, display:"flex", borderRight:SEP}}>
-            {osteos.map(p => <OsteoColumn key={p.id} p={p} />)}
-          </div>
-          {/* Colonne Straps */}
+          {/* Colonnes ostéos */}
           <div style={{flex:1, display:"flex"}}>
-            <StrapColumn />
+            {osteos.map(p => <OsteoColumn key={p.id} p={p} />)}
           </div>
         </div>
       </div>
@@ -1246,10 +1146,6 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
             {p.role==="ostéo"&&<span style={{fontSize:10,color:T.textDim,marginLeft:2}}>(ostéo)</span>}
           </div>
         ))}
-        <div style={css.legendItem}>
-          <div style={{...css.practDot,background:STRAP_COLOR}}/>
-          Straps <span style={{fontSize:10,color:T.textDim,marginLeft:2}}>(2 places/créneau)</span>
-        </div>
       </div>
     </div>
   );
@@ -1387,7 +1283,6 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
     { key:"recurring", label:"↺ Récurrence",     color:"#ffd166", hint:"Cliquez pour activer/désactiver la répétition hebdomadaire." },
     { key:"split",     label:"✂️ Diviser 2×30'", color:"#fd79a8", hint:"Cliquez sur un créneau 1h pour le couper en deux créneaux de 30 min." },
     { key:"addPlayer", label:"➕ Assigner",       color:"#a29bfe", hint:"Cliquez sur un créneau libre pour y assigner un joueur." },
-    { key:"straps",    label:"🩹 Straps",          color:"#ff7043", hint:"Cliquez sur un créneau pour ouvrir/fermer les places straps (2 joueurs max par créneau)." },
     { key:"history",   label:"🗂 Historique",     color:"#8b949e", hint:"Consultez tous les soins passés." },
   ];
   const currentMode = subModes.find(m => m.key === dvSubMode);
@@ -1525,7 +1420,7 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
       )}
 
       {/* ── CALENDAR MODES ── */}
-      {dvSubMode !== "history" && dvSubMode !== "straps" && (
+      {dvSubMode !== "history" && (
         <>
           {/* Assign player panel */}
           {dvSubMode==="addPlayer" && staffTarget && (
@@ -1595,188 +1490,6 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
           </div>
         </>
       )}
-
-      {/* ── STRAPS MODE ── */}
-      {dvSubMode === "straps" && (
-        <StrapsDayView
-          date={dvDate}
-          getBooking={getBooking} isSlotOpen={isSlotOpen}
-          toggleOpen={toggleOpen} staffBookSlot={staffBookSlot} unbook={unbook}
-          PLAYERS={PLAYERS} bookings={bookings}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─── Straps Day View ─────────────────────────────────────────────────────────
-function StrapsDayView({ date, getBooking, isSlotOpen, toggleOpen, staffBookSlot, unbook, PLAYERS, bookings }) {
-  const ROW = 36;
-  const past = isPast(date);
-  const [assignTarget, setAssignTarget] = useState(null); // { strapId, time }
-  const [playerName, setPlayerName] = useState("");
-
-  // Créneaux 30 min de 9h à 23h30
-  const allTimes = [];
-  for (let h = 9; h <= 23; h++) {
-    allTimes.push(`${String(h).padStart(2,"0")}:00`);
-    if (h < 23) allTimes.push(`${String(h).padStart(2,"0")}:30`);
-  }
-  allTimes.push("23:30");
-
-  // Pour un créneau, retourner les 2 places straps (s1, s2)
-  function getStrapSlots(time) {
-    return STRAP_IDS.map(sid => ({
-      id: sid,
-      open: isSlotOpen(sid, date, time),
-      booking: getBooking(sid, date, time),
-    }));
-  }
-
-  function handleTimeClick(time) {
-    if (past) return;
-    const slots = getStrapSlots(time);
-    const allOpen = slots.every(s => s.open || s.booking);
-    const allClosed = slots.every(s => !s.open && !s.booking);
-    if (allClosed) {
-      // Ouvrir les 2 places
-      STRAP_IDS.forEach(sid => toggleOpen(sid, date, time, 30));
-    } else if (!allOpen) {
-      // Ouvrir les places manquantes
-      slots.forEach(s => { if (!s.open && !s.booking) toggleOpen(s.id, date, time, 30); });
-    } else if (slots.every(s => s.open && !s.booking)) {
-      // Fermer toutes les places
-      STRAP_IDS.forEach(sid => toggleOpen(sid, date, time, 30));
-    }
-  }
-
-  function handleSlotClick(strapId, time) {
-    if (past) return;
-    const booking = getBooking(strapId, date, time);
-    if (booking) return; // clic sur réservé → rien (ou futur: annuler)
-    setAssignTarget({ strapId, time });
-    setPlayerName("");
-  }
-
-  const hasAnyOpen = allTimes.some(t => STRAP_IDS.some(sid => isSlotOpen(sid, date, t) || !!getBooking(sid, date, t)));
-  const displayTimes = hasAnyOpen
-    ? allTimes.filter(t => STRAP_IDS.some(sid => isSlotOpen(sid, date, t) || !!getBooking(sid, date, t)))
-    : allTimes.filter(t => { const [h] = t.split(":").map(Number); return h >= 9 && h <= 14; });
-
-  return (
-    <div style={{padding:"0 20px 24px"}}>
-      {/* Assign panel */}
-      {assignTarget && (
-        <div style={{...css.addPlayerPanel, marginBottom:12}}>
-          <div style={{fontWeight:600, marginBottom:8, fontSize:14, color:STRAP_COLOR}}>
-            🩹 Assigner une place Straps · {assignTarget.time}
-          </div>
-          <select style={css.select} value={playerName} onChange={e=>setPlayerName(e.target.value)}>
-            <option value="">-- Choisir un joueur --</option>
-            {PLAYERS.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <div style={{display:"flex", gap:8, marginTop:8}}>
-            <button style={{...css.btn,...css.btnConfirm}}
-              onClick={()=>{
-                if (assignTarget && playerName) {
-                  staffBookSlot(assignTarget.strapId, date, assignTarget.time, playerName);
-                  setAssignTarget(null); setPlayerName("");
-                }
-              }} disabled={!playerName}>
-              Confirmer 🔒
-            </button>
-            <button style={{...css.btn, background:"#21262d", color:"#8b949e", fontSize:14, padding:"10px 16px"}}
-              onClick={()=>{ setAssignTarget(null); setPlayerName(""); }}>
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div style={{fontSize:12, color:T.textDim, marginBottom:10}}>
-        Cliquez sur une ligne pour ouvrir/fermer les 2 places. Cliquez sur une place libre pour assigner un joueur.
-      </div>
-
-      <div style={{borderRadius:12, border:`1px solid ${T.border}`, overflow:"hidden", boxShadow:"0 2px 12px rgba(0,35,149,0.08)"}}>
-        {/* Header */}
-        <div style={{display:"flex", height:44, background:T.surface3, borderBottom:`2px solid ${STRAP_COLOR}44`}}>
-          <div style={{width:64, flexShrink:0, borderRight:`1px solid ${T.border}`}} />
-          <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:STRAP_COLOR+"18"}}>
-            <span style={{fontSize:20}}>🩹</span>
-            <span style={{fontSize:14, fontWeight:800, color:STRAP_COLOR}}>Straps</span>
-            <span style={{fontSize:12, color:T.textDim}}>— 2 places par créneau</span>
-          </div>
-        </div>
-
-        {/* Rows */}
-        {displayTimes.map(time => {
-          const slots = getStrapSlots(time);
-          const isHour = time.endsWith(":00");
-          const anyActive = slots.some(s => s.open || s.booking);
-          const slotPast = isPast(date) || (date === new Date().toISOString().split("T")[0] && (() => {
-            const [h, m] = time.split(":").map(Number);
-            const now = new Date();
-            return h < now.getHours() || (h === now.getHours() && m <= now.getMinutes());
-          })());
-
-          return (
-            <div key={time} style={{
-              display:"flex", height:ROW,
-              borderBottom: isHour ? `2px solid ${T.border}` : `1px solid ${T.border2}`,
-              background: isHour ? T.surface : T.surface3+"88",
-              opacity: slotPast && !anyActive ? 0.4 : 1,
-            }}>
-              {/* Time axis */}
-              <div style={{
-                width:64, flexShrink:0, borderRight:`1px solid ${T.border}`,
-                display:"flex", alignItems:"center", justifyContent:"flex-end", padding:"0 8px",
-                background: isHour ? T.surface2 : T.surface3,
-                cursor: past ? "default" : "pointer",
-              }} onClick={() => !slotPast && handleTimeClick(time)}>
-                <span style={{fontSize:isHour?11:9, fontWeight:isHour?700:400, color:isHour?T.textMid:T.textDim}}>{time}</span>
-              </div>
-
-              {/* 2 places */}
-              <div style={{flex:1, display:"flex", gap:6, alignItems:"center", justifyContent:"center", padding:"0 8px",
-                cursor: (!slotPast && !anyActive) ? "pointer" : "default",
-              }} onClick={() => !slotPast && !anyActive && handleTimeClick(time)}>
-                {!anyActive ? (
-                  <span style={{fontSize:11, color:T.textDim, opacity:0.3}}>+</span>
-                ) : (
-                  slots.map((s, i) => {
-                    if (!s.open && !s.booking) return null;
-                    if (s.booking) {
-                      return (
-                        <div key={s.id} style={{
-                          flex:1, height:ROW-6, borderRadius:8, background:STRAP_COLOR+"44",
-                          border:`2px solid ${STRAP_COLOR}`, display:"flex", alignItems:"center",
-                          justifyContent:"space-between", padding:"0 8px", gap:4,
-                        }}>
-                          <span style={{fontSize:11, fontWeight:700, color:STRAP_COLOR, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
-                            {s.booking.player}
-                          </span>
-                          {!slotPast && (
-                            <button style={css.deleteBtn} onClick={e=>{e.stopPropagation();unbook(s.id,date,time);}}>✕</button>
-                          )}
-                        </div>
-                      );
-                    }
-                    return (
-                      <div key={s.id} style={{
-                        flex:1, height:ROW-6, borderRadius:8, background:STRAP_COLOR+"0c",
-                        border:`2px dashed ${STRAP_COLOR}88`, display:"flex", alignItems:"center",
-                        justifyContent:"center", cursor:slotPast?"default":"pointer",
-                      }} onClick={e=>{e.stopPropagation(); !slotPast && handleSlotClick(s.id, time);}}>
-                        <span style={{fontSize:10, color:STRAP_COLOR, fontWeight:600}}>Place libre</span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
