@@ -1535,7 +1535,7 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
       const covRec = isRecurring(k.id, date, coveringTime);
       let bg = T.surface3+"88";
       let bl = "3px solid transparent";
-      if (covBooking) { bg = k.color+"18"; bl = `3px solid ${k.color}`; }
+      if (covBooking) { bg = k.color+"44"; bl = `3px solid ${k.color}`; }
       else if (covOpen) {
         bg = covRec ? k.color+"14" : k.color+"0c";
         bl = covRec ? `3px solid ${k.color}88` : `3px solid ${k.color}55`;
@@ -1564,14 +1564,15 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
     let indicator = null;
 
     if (booking) {
-      bg = k.color+"18"; bl = `3px solid ${k.color}`;
+      bg = k.color+"44"; bl = `3px solid ${k.color}`;
       indicator = (
         <div style={{width:"100%", overflow:"hidden", padding:"0 4px"}}>
           <div style={{display:"flex", alignItems:"center", gap:2}}>
-            <span style={{fontSize:10, fontWeight:700, color:k.color, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1}}>
+            <span style={{fontSize:10, fontWeight:800, color:k.color, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1,
+              textShadow:"0 0 0 transparent", filter:"brightness(0.6)"}}>
               {booking.player}
             </span>
-            {booking.locked && <span style={{fontSize:8, opacity:0.5, flexShrink:0}}>🔒</span>}
+            {booking.locked && <span style={{fontSize:8, opacity:0.7, flexShrink:0}}>🔒</span>}
             {!isPastDay && <button style={css.deleteBtn} onClick={e=>{e.stopPropagation();unbook(k.id,date,time);}}>✕</button>}
           </div>
           {booking.note && (
