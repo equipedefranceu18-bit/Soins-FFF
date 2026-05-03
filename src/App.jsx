@@ -578,14 +578,24 @@ function PlayerView({
     setSelectedDate(null); setSelectedTime(null); setSelectedPract(null);
   }
 
+  const [doubleBookingAlert, setDoubleBookingAlert] = useState(null); // { date, existingPract }
+
   function handlePractSelect(id) {
     setSelectedPract(id === selectedPract ? null : id);
     setSelectedDate(null); setSelectedTime(null);
   }
   function handleSlotClick(pId, date, time) {
     if (!isAvailable(pId, date, time)) return;
-    if (!playerName.trim()) return; // nom requis
-    // Mode créneau uniquement — sélectionne directement praticien + date + heure
+    if (!playerName.trim()) return;
+
+    // Vérifier si le joueur a déjà un RDV ce jour-là
+    const existing = mb.find(b => b.date === date);
+    if (existing && !(existing.date === selectedDate && existing.pId === selectedPract)) {
+      const existPract = PRACTITIONERS.find(x => x.id === existing.pId);
+      setDoubleBookingAlert({ date, existingPract: existPract, existingTime: existing.time });
+      return;
+    }
+
     if (selectedDate===date && selectedTime===time && selectedPract===pId) {
       setSelectedDate(null); setSelectedTime(null); setSelectedPract(null);
     } else {
@@ -628,6 +638,31 @@ function PlayerView({
 
   return (
     <div style={css.pageWrap}>
+      {/* Modal double réservation */}
+      {doubleBookingAlert && (
+        <div style={css.modalOverlay} onClick={() => setDoubleBookingAlert(null)}>
+          <div style={{...css.modalCard, textAlign:"center", maxWidth:380}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:40, marginBottom:8}}>⚠️</div>
+            <h3 style={{margin:"0 0 8px", fontSize:17, color:T.navy, fontWeight:800}}>
+              Un seul RDV par jour
+            </h3>
+            <p style={{margin:"0 0 16px", fontSize:14, color:T.textDim, lineHeight:1.5}}>
+              Tu as déjà un rendez-vous ce jour-là à <strong>{doubleBookingAlert.existingTime}</strong> avec{" "}
+              <strong style={{color: doubleBookingAlert.existingPract?.color}}>
+                {doubleBookingAlert.existingPract?.name}
+              </strong>.
+            </p>
+            <p style={{margin:"0 0 20px", fontSize:13, color:T.textMid, background:T.surface2, borderRadius:10, padding:"10px 14px", lineHeight:1.6}}>
+              Pour un deuxième soin, contacte directement ton kiné référent ou le staff médical.
+            </p>
+            <button style={{...css.btn, ...css.btnPlayer, width:"100%"}}
+              onClick={() => setDoubleBookingAlert(null)}>
+              Compris ✓
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={css.pageHeader}>
         <button style={css.backBtn} onClick={() => setView("home")}>←</button>
         <h2 style={css.pageTitle}>Réserver un soin</h2>
