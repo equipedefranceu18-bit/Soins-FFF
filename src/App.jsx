@@ -648,17 +648,7 @@ function PlayerView({
         </select>
       </div>
 
-      {/* Mode tabs */}
-      <div style={css.modeTabs}>
-        <button style={{...css.modeTab,...(playerMode==="byPract"?css.modeTabActive:{})}}
-          onClick={()=>{ setPlayerMode("byPract"); setSelectedPract(null); setSelectedDate(null); setSelectedTime(null); }}>
-          Choisir un praticien
-        </button>
-        <button style={{...css.modeTab,...(playerMode==="bySlot"?css.modeTabActive:{})}}
-          onClick={()=>{ setPlayerMode("bySlot"); setSelectedPract(null); setSelectedDate(null); setSelectedTime(null); }}>
-          Choisir un créneau
-        </button>
-      </div>
+      {/* Mode tabs supprimés — vue créneaux uniquement */}
 
       <div style={css.noticeBar}>
         🕐 Les créneaux ne sont réservables que dans les 20h qui précèdent le soin
@@ -712,23 +702,12 @@ function PlayerView({
         </span>
       </div>
 
-      {playerMode === "byPract" ? (
-        <ByPractGrid
-          practitioners={practitioners} days={singleDay}
-          selectedPract={selectedPract} onPractSelect={handlePractSelect}
-          selectedDate={selectedDate} selectedTime={selectedTime}
-          isAvailable={isAvailable} getBooking={getBooking}
-          isSlotOpen={isSlotOpen} getSlotsForContext={getSlotsForContext} isSplit={isSplit}
-          onSlotClick={handleSlotClick}
-        />
-      ) : (
-        <BySlotGrid
+      <BySlotGrid
           practitioners={practitioners} days={singleDay}
           selectedPract={selectedPract} selectedDate={selectedDate} selectedTime={selectedTime}
           isAvailable={isAvailable} isSlotOpen={isSlotOpen} getSlotsForContext={getSlotsForContext} isSplit={isSplit}
           onSlotClick={handleSlotClick}
         />
-      )}
 
       {canConfirm && (
         <div style={css.confirmBar}>
@@ -998,7 +977,7 @@ function BySlotGrid({ practitioners, days, selectedPract, selectedDate, selected
                     <span style={{fontSize:8, color:"#e05090"}}>30'</span>
                   </div>
                   <div style={{
-                    flex:1, display:"flex", alignItems:"center", justifyContent:"flex-end",
+                    flex:1, display:"flex", alignItems:"center", justifyContent:"center",
                     gap:6, padding:"2px 8px",
                     background:T.surface, opacity: past ? 0.5 : 1,
                   }}>
@@ -1018,7 +997,7 @@ function BySlotGrid({ practitioners, days, selectedPract, selectedDate, selected
                     <span style={{fontSize:8, color:"#e05090"}}>30'</span>
                   </div>
                   <div style={{
-                    flex:1, display:"flex", alignItems:"center", justifyContent:"flex-end",
+                    flex:1, display:"flex", alignItems:"center", justifyContent:"center",
                     gap:6, padding:"2px 8px",
                     background:T.surface, opacity: past ? 0.5 : 1,
                   }}>
@@ -1164,7 +1143,7 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
   const [moveModal,    setMoveModal]    = useState(null); // { practId, date, time, booking }
   const [histFilter,   setHistFilter]   = useState("");
 
-  const kines4 = practitioners.filter(p => p.role === "kiné");
+  const kines4 = practitioners; // tous les praticiens : 4 kinés + ostéo
   const dvDate = staffViewDay || todayStr();
 
   const pastBookings = getPastBookings();
