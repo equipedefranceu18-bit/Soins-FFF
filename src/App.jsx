@@ -146,7 +146,7 @@ export default function App() {
 
   // Player state
   const [playerName,    setPlayerName]    = useState("");
-  const [playerMode,    setPlayerMode]    = useState("bySlot");
+  const [playerMode,    setPlayerMode]    = useState("byPract");
   const [selectedPract, setSelectedPract] = useState(null);
   const [selectedDate,  setSelectedDate]  = useState(null);
   const [selectedTime,  setSelectedTime]  = useState(null);
@@ -995,36 +995,59 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
                     <span style={{fontSize:8, color:"#e05090"}}>30'+30'</span>
                   </div>
 
-                  {/* Colonne Kinés */}
-                  <div style={{flex:4, display:"flex", flexDirection:"column", borderRight:`2px solid ${T.navy}44`}}>
-                    {/* :00 kinés */}
-                    <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:4, padding:"2px 4px", borderBottom:`1px dashed ${T.border2}`, background:T.surface, opacity:past?0.5:1}}>
-                      {avail1hKines.map(p => <PractBtn key={`1h-${p.id}`} p={p} d={d} time={baseTime} h={H-4} />)}
-                      {avail00K.map(p => <PractBtn key={p.id} p={p} d={d} time={baseTime} h={H-4} />)}
-                      {avail1hKines.length===0 && avail00K.length===0 && <span style={{fontSize:9,opacity:0.12}}>—</span>}
-                    </div>
-                    {/* :30 kinés */}
-                    <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:4, padding:"2px 4px", background:T.surface, opacity:past?0.5:1}}>
-                      {avail1hKines.map(p => <PractBtn key={`1h-${p.id}`} p={p} d={d} time={baseTime} h={H-4} />)}
-                      {avail30K.map(p => <PractBtn key={p.id} p={p} d={d} time={halfTime} h={H-4} />)}
-                      {avail1hKines.length===0 && avail30K.length===0 && <span style={{fontSize:9,opacity:0.12}}>—</span>}
-                    </div>
+                  {/* Colonne Kinés — divisée en sous-colonnes si nécessaire */}
+                  <div style={{flex:4, display:"flex", borderRight:`2px solid ${T.navy}33`}}>
+                    {/* Sous-colonne : kinés 1h (span vertical) */}
+                    {avail1hKines.length > 0 && (
+                      <div style={{
+                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                        gap:4, padding:"4px 3px", borderRight:`1px dashed ${T.border2}`,
+                        background:T.surface, opacity:past?0.5:1, minWidth:44,
+                      }}>
+                        {avail1hKines.map(p => (
+                          <PractBtn key={`1h-${p.id}`} p={p} d={d} time={baseTime} h={H*2-8} />
+                        ))}
+                        <span style={{fontSize:7, color:T.textDim, fontWeight:600}}>1h</span>
+                      </div>
+                    )}
+                    {/* Sous-colonne : kinés 30' */}
+                    {(avail00K.length > 0 || avail30K.length > 0) && (
+                      <div style={{flex:1, display:"flex", flexDirection:"column", background:T.surface, opacity:past?0.5:1}}>
+                        <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:3, padding:"2px 3px", borderBottom:`1px dashed ${T.border2}`}}>
+                          {avail00K.map(p => <PractBtn key={p.id} p={p} d={d} time={baseTime} h={H-5} />)}
+                          {avail00K.length===0 && <span style={{fontSize:8,opacity:0.1}}>—</span>}
+                        </div>
+                        <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:3, padding:"2px 3px"}}>
+                          {avail30K.map(p => <PractBtn key={p.id} p={p} d={d} time={halfTime} h={H-5} />)}
+                          {avail30K.length===0 && <span style={{fontSize:8,opacity:0.1}}>—</span>}
+                        </div>
+                      </div>
+                    )}
+                    {avail1hKines.length===0 && avail00K.length===0 && avail30K.length===0 && (
+                      <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center"}}>
+                        <span style={{fontSize:10,opacity:0.12}}>—</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Colonne Ostéo */}
-                  <div style={{flex:1, display:"flex", flexDirection:"column", background:"#faf5ff"}}>
-                    {/* :00 ostéo */}
-                    <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:4, padding:"2px 4px", borderBottom:`1px dashed ${T.border2}`, opacity:past?0.5:1}}>
-                      {avail1hOsteo.map(p => <PractBtn key={`1h-${p.id}`} p={p} d={d} time={baseTime} h={H-4} />)}
-                      {avail00O.map(p => <PractBtn key={p.id} p={p} d={d} time={baseTime} h={H-4} />)}
-                      {avail1hOsteo.length===0 && avail00O.length===0 && <span style={{fontSize:9,opacity:0.12}}>—</span>}
-                    </div>
-                    {/* :30 ostéo */}
-                    <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:4, padding:"2px 4px", opacity:past?0.5:1}}>
-                      {avail1hOsteo.map(p => <PractBtn key={`1h-${p.id}`} p={p} d={d} time={baseTime} h={H-4} />)}
-                      {avail30O.map(p => <PractBtn key={p.id} p={p} d={d} time={halfTime} h={H-4} />)}
-                      {avail1hOsteo.length===0 && avail30O.length===0 && <span style={{fontSize:9,opacity:0.12}}>—</span>}
-                    </div>
+                  {/* Colonne Ostéo — alignée verticalement */}
+                  <div style={{flex:1, display:"flex", flexDirection:"column", background:"#faf5ff", opacity:past?0.5:1}}>
+                    {avail1hOsteo.length > 0 ? (
+                      <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center"}}>
+                        {avail1hOsteo.map(p => <PractBtn key={p.id} p={p} d={d} time={baseTime} h={H*2-8} />)}
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center", borderBottom:`1px dashed ${T.border2}`}}>
+                          {avail00O.map(p => <PractBtn key={p.id} p={p} d={d} time={baseTime} h={H-5} />)}
+                          {avail00O.length===0 && <span style={{fontSize:8,opacity:0.1}}>—</span>}
+                        </div>
+                        <div style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center"}}>
+                          {avail30O.map(p => <PractBtn key={p.id} p={p} d={d} time={halfTime} h={H-5} />)}
+                          {avail30O.length===0 && <span style={{fontSize:8,opacity:0.1}}>—</span>}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
