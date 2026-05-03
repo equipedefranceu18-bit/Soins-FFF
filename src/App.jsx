@@ -967,7 +967,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     </div>
   );
 
-  // Helper: pour un praticien, est-ce que time ET time+30' sont ouverts/réservés ?
+  // Helper: pour un praticien spécifique, est-ce que time ET time+30' sont ouverts/réservés ?
   function isPair(p, time) {
     const [h, m] = time.split(":").map(Number);
     let nextH = h, nextM = m + 30;
@@ -996,7 +996,13 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
 
     // Pour chaque praticien, est-ce qu'il a une paire ?
     const allPracts = [...kines, ...osteos];
-    const anyPair = allPracts.some(p => isPair(p, time));
+    const visiblePracts = allPracts.filter(p => {
+      const hasThis = isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time);
+      const hasNext = isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime);
+      return hasThis || hasNext;
+    });
+    // Fusionner seulement si TOUS les praticiens visibles ont les deux créneaux
+    const anyPair = visiblePracts.length > 0 && visiblePracts.every(p => isPair(p, time));
     const nextIsConsecutive = baseTimes[i+1] === nextTime;
 
     if (anyPair && nextIsConsecutive) {
@@ -1482,12 +1488,42 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
     }
   }
 
-  function renderCell(k, time) {
+  // Pour une colonne de kiné, calculer les lignes à afficher
+  // en fusionnant les paires consécutives 30'+30' en un bloc 1h
+  function buildKineRows(k) {
+    const rows = [];
+    const processed = new Set();
+    for (const time of displayTimes) {
+      if (processed.has(time)) continue;
+      const [h, m] = time.split(":").map(Number);
+      let nextH = h, nextM = m + 30;
+      if (nextM >= 60) { nextH++; nextM = 0; }
+      const nextTime = `${String(nextH).padStart(2,"0")}:${String(nextM).padStart(2,"0")}`;
+      const { booking: b1, slotOpen: o1 } = getSlotStatus(k, time);
+      const { booking: b2, slotOpen: o2 } = getSlotStatus(k, nextTime);
+      const hasBoth = (b1||o1) && (b2||o2) && displayTimes.includes(nextTime);
+      if (hasBoth) {
+        processed.add(time);
+        processed.add(nextTime);
+        rows.push({ time, nextTime, merged: true, h: H30*2 });
+      } else {
+        processed.add(time);
+        rows.push({ time, nextTime: null, merged: false, h: H30 });
+      }
+    }
+    return rows;
+  }
+
+  // La grille staff : axe temps fixe H30, mais chaque colonne kiné
+  // peut avoir des cellules fusionnées H30*2
+  // Pour l'axe temps, on affiche toujours H30 par créneau
+  function renderCell(k, time, h) {
     const { booking, slotOpen, rec } = getSlotStatus(k, time);
+    const is1h = h > H30;
     const isTarget = staffTarget?.practId===k.id && staffTarget?.date===date && staffTarget?.time===time;
 
     const commonStyle = {
-      height: H30, flexShrink: 0,
+      height: h, flexShrink: 0,
       borderBottom: `1px solid ${T.border2}`,
       borderRight: `1px solid ${T.border}`,
       overflow: "hidden",
@@ -1522,7 +1558,7 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
           <span style={{fontSize:12, color:k.color, fontWeight:800, opacity:0.7}}>
             {rec ? "↺" : "✓"}
           </span>
-          <span style={{fontSize:7, color:k.color+"99", fontWeight:600}}>30'</span>
+          <span style={{fontSize:7, color:k.color+"99", fontWeight:600}}>{is1h ? "1h" : "30'"}</span>
         </div>
       );
     } else {
@@ -1539,7 +1575,7 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
         cursor: isPastDay ? "default" : "pointer",
       }}
         onClick={() => !isPastDay && handleCellClick(k.id, time)}
-        title={booking ? `${booking.player}` : slotOpen ? "Ouvert 30'" : "Fermé — cliquer pour ouvrir"}>
+        title={booking ? `${booking.player}` : slotOpen ? `Ouvert ${is1h?"1h":"30'"}` : "Fermé — cliquer pour ouvrir"}>
         {indicator}
       </div>
     );
@@ -1599,7 +1635,12 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
               <div style={{...css.practAvatar, background:k.color, width:30, height:30, fontSize:11, flexShrink:0}}>{k.initials}</div>
               <span style={{fontSize:13, fontWeight:700, color:k.color, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{k.name}</span>
             </div>
-            {displayTimes.map(time => renderCell(k, time))}
+            {/* Per slot: use buildKineRows to merge consecutive 30' pairs */}
+            {buildKineRows(k).map(({time, nextTime, merged, h}) =>
+              merged
+                ? renderCell(k, time, h)
+                : renderCell(k, time, h)
+            )}
           </div>
         ))}
       </div>
