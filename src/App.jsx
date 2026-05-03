@@ -874,15 +874,15 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
   }
 
   // Bouton individuel
-  function Btn({ p, time, h }) {
+  function Btn({ p, time, h, forceLabel }) {
     const booked = !!getBooking(p.id, d, time);
     const open   = isSlotOpen(p.id, d, time);
-    if (!booked && !open) return <div style={{minWidth:44,flexShrink:0}} />; // placeholder invisible pour maintenir l'ordre
+    if (!booked && !open) return <div style={{minWidth:44,flexShrink:0}} />;
 
     const avail   = isAvailable(p.id, d, time);
     const sel     = selectedPract===p.id && selectedDate===d && selectedTime===time;
     const blocked = !booked && playerHasBookingAt(time);
-    const is30    = time.endsWith(":30");
+    const label   = forceLabel || (time.endsWith(":30") ? "30'" : "1h");
 
     let bg, border, textColor, cursor;
     if (booked)               { bg="#ebebeb"; border="#ccc";    textColor="#bbb"; cursor="not-allowed"; }
@@ -898,10 +898,10 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         cursor, gap:2, boxShadow:sel?`0 2px 10px ${p.color}55`:"none",
       }}
         onClick={()=>(avail&&!blocked&&!booked)&&onSlotClick(p.id,d,time)}
-        title={booked?"Réservé":blocked?"Déjà un RDV à cette heure":`${p.name} — ${is30?"30 min":"1 heure"}`}>
+        title={booked?"Réservé":blocked?"Déjà un RDV à cette heure":`${p.name} — ${label==="1h"?"1 heure":"30 min"}`}>
         <span style={{fontSize:13,fontWeight:800,color:textColor}}>{p.initials}</span>
         <span style={{fontSize:8,color:sel?"rgba(255,255,255,0.85)":booked?"#ccc":p.color+"99",fontWeight:700}}>
-          {is30?"30'":"1h"}
+          {label}
         </span>
       </button>
     );
@@ -967,37 +967,106 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     </div>
   );
 
-  const rows = baseTimes.map(time => {
-    const is30 = time.endsWith(":30") || practitioners.some(p => isSplit(p.id, d, time.replace(":30",":00")) && time.endsWith(":30"));
-    const rowH = is30 ? H2 : H1;
+  // Helper: pour un praticien, est-ce que time ET time+30' sont ouverts/réservés ?
+  function isPair(p, time) {
+    if (time.endsWith(":30")) return false; // ne fusionner qu'à partir du :00 ou :30 pairs
+    const [h, m] = time.split(":").map(Number);
+    let nextH = h, nextM = m + 30;
+    if (nextM >= 60) { nextH++; nextM = 0; }
+    const nextTime = `${String(nextH).padStart(2,"0")}:${String(nextM).padStart(2,"0")}`;
+    const hasThis = isSlotOpen(p.id, d, time) || !!getBooking(p.id, d, time);
+    const hasNext = isSlotOpen(p.id, d, nextTime) || !!getBooking(p.id, d, nextTime);
+    return hasThis && hasNext;
+  }
 
-    return (
-      <div key={time} style={{display:"flex",height:rowH,borderBottom:`1px solid ${T.border2}`}}>
-        {/* Axe temps */}
-        <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",
-          flexDirection:"column",alignItems:"flex-end",justifyContent:"center",
-          padding:"0 8px",background:T.surface2}}>
-          <span style={{fontSize:time.endsWith(":00")?11:10,fontWeight:time.endsWith(":00")?700:400,color:time.endsWith(":00")?T.textMid:T.textDim}}>{time}</span>
-          {!is30 && <span style={{fontSize:9,color:T.textDim}}>1h</span>}
-          {is30 && <span style={{fontSize:7,color:"#e05090"}}>30'</span>}
+  // Construire les lignes en fusionnant les paires consécutives
+  // On parcourt baseTimes et on groupe les paires
+  const rows = [];
+  const processedTimes = new Set();
+
+  for (let i = 0; i < baseTimes.length; i++) {
+    const time = baseTimes[i];
+    if (processedTimes.has(time)) continue;
+
+    // Calculer le créneau suivant
+    const [h, m] = time.split(":").map(Number);
+    let nextH = h, nextM = m + 30;
+    if (nextM >= 60) { nextH++; nextM = 0; }
+    const nextTime = `${String(nextH).padStart(2,"0")}:${String(nextM).padStart(2,"0")}`;
+
+    // Pour chaque praticien, est-ce qu'il a une paire ?
+    const allPracts = [...kines, ...osteos];
+    const anyPair = allPracts.some(p => isPair(p, time));
+    const nextIsConsecutive = baseTimes[i+1] === nextTime;
+
+    if (anyPair && nextIsConsecutive) {
+      // Ligne fusionnée H1 — affiche les deux demi-créneaux comme un seul bloc 1h
+      processedTimes.add(time);
+      processedTimes.add(nextTime);
+
+      rows.push(
+        <div key={time} style={{display:"flex", height:H1, borderBottom:`1px solid ${T.border2}`}}>
+          <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",
+            flexDirection:"column",alignItems:"flex-end",justifyContent:"center",
+            padding:"0 8px",background:T.surface2}}>
+            <span style={{fontSize:11,fontWeight:700,color:T.textMid}}>{time}</span>
+            <span style={{fontSize:9,color:T.textDim}}>1h</span>
+          </div>
+          <div style={{flex:4,borderRight:SEP,display:"flex",alignItems:"center",justifyContent:"center",
+            gap:6,padding:"0 8px",background:T.surface,opacity:past?0.45:1}}>
+            {kines.map(p => {
+              const hasThis = isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time);
+              const hasNext = isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime);
+              if (!hasThis && !hasNext) return null;
+              const clickTime = hasThis ? time : nextTime;
+              return <Btn key={p.id} p={p} time={clickTime} h={H1} forceLabel="1h" />;
+            })}
+            {!kines.some(p=>(isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))||(isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime)))&&
+              <span style={{fontSize:11,opacity:0.15}}>—</span>}
+          </div>
+          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",
+            gap:4,padding:"0 4px",background:"#faf5ff",opacity:past?0.45:1}}>
+            {osteos.map(p => {
+              const hasThis = isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time);
+              const hasNext = isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime);
+              if (!hasThis && !hasNext) return null;
+              const clickTime = hasThis ? time : nextTime;
+              return <Btn key={p.id} p={p} time={clickTime} h={H1} forceLabel="1h" />;
+            })}
+            {!osteos.some(p=>(isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))||(isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime)))&&
+              <span style={{fontSize:9,opacity:0.12}}>—</span>}
+          </div>
         </div>
-        {/* Colonne kinés */}
-        <div style={{flex:4,borderRight:SEP,display:"flex",alignItems:"center",justifyContent:"center",
-          gap:6,padding:"0 8px",background:T.surface,opacity:past?0.45:1}}>
-          {kines.map(p=><PractBtn key={p.id} p={p} time={time} h={rowH}/>)}
-          {!kines.some(p=>isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))&&
-            <span style={{fontSize:11,opacity:0.15}}>—</span>}
+      );
+    } else {
+      // Ligne simple H2 — créneau 30' seul
+      processedTimes.add(time);
+      const rowH = H2;
+      rows.push(
+        <div key={time} style={{display:"flex",height:rowH,borderBottom:`1px solid ${T.border2}`}}>
+          <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",
+            flexDirection:"column",alignItems:"flex-end",justifyContent:"center",
+            padding:"0 8px",background:T.surface2}}>
+            <span style={{fontSize:time.endsWith(":00")?11:10,fontWeight:time.endsWith(":00")?700:400,
+              color:time.endsWith(":00")?T.textMid:T.textDim}}>{time}</span>
+            <span style={{fontSize:7,color:"#e05090"}}>30'</span>
+          </div>
+          <div style={{flex:4,borderRight:SEP,display:"flex",alignItems:"center",justifyContent:"center",
+            gap:6,padding:"0 8px",background:T.surface,opacity:past?0.45:1}}>
+            {kines.map(p=><Btn key={p.id} p={p} time={time} h={rowH}/>)}
+            {!kines.some(p=>isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))&&
+              <span style={{fontSize:10,opacity:0.15}}>—</span>}
+          </div>
+          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",
+            gap:4,padding:"0 4px",background:"#faf5ff",opacity:past?0.45:1}}>
+            {osteos.map(p=><Btn key={p.id} p={p} time={time} h={rowH}/>)}
+            {!osteos.some(p=>isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))&&
+              <span style={{fontSize:9,opacity:0.12}}>—</span>}
+          </div>
         </div>
-        {/* Colonne ostéo */}
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",
-          gap:4,padding:"0 4px",background:"#faf5ff",opacity:past?0.45:1}}>
-          {osteos.map(p=><PractBtn key={p.id} p={p} time={time} h={rowH}/>)}
-          {!osteos.some(p=>isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))&&
-            <span style={{fontSize:9,opacity:0.12}}>—</span>}
-        </div>
-      </div>
-    );
-  });
+      );
+    }
+  }
 
   return (
     <div style={css.gridSection}>
@@ -1398,14 +1467,17 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
 
   async function openWithDuration(duration, practId, time) {
     if (duration === 60) {
-      // 1 heure : ouvrir uniquement le créneau :00 (pas de :30)
-      // Si on clique sur un :30, on ouvre le :00 correspondant
-      const baseTime = time.endsWith(":30")
-        ? `${time.split(":")[0].padStart(2,"0")}:00`
-        : time;
-      onCellClick(practId, date, baseTime);
+      // 1 heure : ouvrir ce créneau ET le suivant (2 × 30')
+      onCellClick(practId, date, time);
+      const [h, m] = time.split(":").map(Number);
+      let nextH = h, nextM = m + 30;
+      if (nextM >= 60) { nextH++; nextM = 0; }
+      if (nextH <= 23) {
+        const nextTime = `${String(nextH).padStart(2,"0")}:${String(nextM).padStart(2,"0")}`;
+        onCellClick(practId, date, nextTime);
+      }
     } else {
-      // 30 min : ouvrir uniquement ce demi-créneau
+      // 30 min : ouvrir uniquement ce créneau
       onCellClick(practId, date, time);
     }
   }
