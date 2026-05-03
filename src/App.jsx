@@ -868,9 +868,20 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
   const SEP = `2px solid ${T.navy}33`;
 
   // Tous les times ouverts, triés
-  const baseTimes = [...new Set(
-    practitioners.flatMap(p => getSlotsForContext(p.id, d))
-  )].sort();
+  // + ajouter les time+30 pour chaque slot 1h (pour que le span=2 fonctionne même sans voisin)
+  const rawTimes = [...new Set(practitioners.flatMap(p => getSlotsForContext(p.id, d)))];
+  const extraTimes = [];
+  for (const p of practitioners) {
+    for (const time of rawTimes) {
+      if ((isSlotOpen(p.id, d, time) || !!getBooking(p.id, d, time)) && getSlotDuration(p.id, d, time) === 60) {
+        const [h, m] = time.split(":").map(Number);
+        let nh = h, nm = m + 30;
+        if (nm >= 60) { nh++; nm = 0; }
+        if (nh <= 23) extraTimes.push(`${String(nh).padStart(2,"0")}:${String(nm).padStart(2,"0")}`);
+      }
+    }
+  }
+  const baseTimes = [...new Set([...rawTimes, ...extraTimes])].sort();
 
   if (baseTimes.length === 0) {
     return (
