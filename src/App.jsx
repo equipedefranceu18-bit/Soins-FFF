@@ -1096,7 +1096,7 @@ function DayNav({ days, dayOffset, setDayOffset }) {
   return (
     <div style={css.weekNav}>
       <button style={css.weekBtn} onClick={()=>setDayOffset(o=>o-7)}
-        title={dayOffset===0?"Aujourd'hui est déjà à gauche":""}>
+  
         ‹
       </button>
       <span style={css.weekLabel}>
