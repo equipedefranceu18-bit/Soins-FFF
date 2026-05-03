@@ -979,8 +979,9 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     return hasThis && hasNext;
   }
 
-  // Construire les lignes en fusionnant les paires consécutives
-  // On parcourt baseTimes et on groupe les paires
+  // Construire les lignes — chaque ligne est un créneau de 30'
+  // La fusion 1h se fait PER PRATICIEN dans le rendu du bouton
+  // Une ligne existe si au moins un praticien a ce créneau
   const rows = [];
   const processedTimes = new Set();
 
@@ -988,21 +989,14 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     const time = baseTimes[i];
     if (processedTimes.has(time)) continue;
 
-    // Calculer le créneau suivant
     const [h, m] = time.split(":").map(Number);
     let nextH = h, nextM = m + 30;
     if (nextM >= 60) { nextH++; nextM = 0; }
     const nextTime = `${String(nextH).padStart(2,"0")}:${String(nextM).padStart(2,"0")}`;
 
-    // Pour chaque praticien, est-ce qu'il a une paire ?
+    // Fusionner la ligne si au moins un praticien a une paire ET le créneau suivant est dans baseTimes
     const allPracts = [...kines, ...osteos];
-    const visiblePracts = allPracts.filter(p => {
-      const hasThis = isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time);
-      const hasNext = isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime);
-      return hasThis || hasNext;
-    });
-    // Fusionner seulement si TOUS les praticiens visibles ont les deux créneaux
-    const anyPair = visiblePracts.length > 0 && visiblePracts.every(p => isPair(p, time));
+    const anyPair = allPracts.some(p => isPair(p, time));
     const nextIsConsecutive = baseTimes[i+1] === nextTime;
 
     if (anyPair && nextIsConsecutive) {
@@ -1023,9 +1017,10 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
             {kines.map(p => {
               const hasThis = isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time);
               const hasNext = isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime);
-              if (!hasThis && !hasNext) return null;
+              if (!hasThis && !hasNext) return <div key={p.id} style={{minWidth:44,flexShrink:0}}/>;
+              const hasPair = hasThis && hasNext;
               const clickTime = hasThis ? time : nextTime;
-              return <Btn key={p.id} p={p} time={clickTime} h={H1} forceLabel="1h" />;
+              return <Btn key={p.id} p={p} time={clickTime} h={hasPair?H1:H2} forceLabel={hasPair?"1h":"30'"} />;
             })}
             {!kines.some(p=>(isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))||(isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime)))&&
               <span style={{fontSize:11,opacity:0.15}}>—</span>}
@@ -1036,8 +1031,9 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
               const hasThis = isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time);
               const hasNext = isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime);
               if (!hasThis && !hasNext) return null;
+              const hasPair = hasThis && hasNext;
               const clickTime = hasThis ? time : nextTime;
-              return <Btn key={p.id} p={p} time={clickTime} h={H1} forceLabel="1h" />;
+              return <Btn key={p.id} p={p} time={clickTime} h={hasPair?H1:H2} forceLabel={hasPair?"1h":"30'"} />;
             })}
             {!osteos.some(p=>(isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))||(isSlotOpen(p.id,d,nextTime)||!!getBooking(p.id,d,nextTime)))&&
               <span style={{fontSize:9,opacity:0.12}}>—</span>}
