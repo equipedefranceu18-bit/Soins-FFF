@@ -123,6 +123,12 @@ export default function App() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Actualisation automatique toutes les 30 secondes
+  useEffect(() => {
+    const interval = setInterval(() => { loadAll(); }, 30000);
+    return () => clearInterval(interval);
+  }, [loadAll]);
+
   useEffect(() => {
     const ch = supabase.channel("sync")
       .on("postgres_changes",{event:"*",schema:"public",table:"open_slots"},loadAll)
@@ -356,6 +362,7 @@ export default function App() {
       )}
       {view === "staff" && staffAuth && (
         <StaffView
+          loadAll={loadAll}
           practitioners={PRACTITIONERS} days={days}
           dayOffset={dayOffset} setDayOffset={setDayOffset}
           staffPract={staffPract} setStaffPract={setStaffPract}
@@ -612,6 +619,7 @@ function PlayerView({
       <div style={css.pageHeader}>
         <button style={css.backBtn} onClick={() => setView("home")}>←</button>
         <h2 style={css.pageTitle}>Réserver un soin</h2>
+        <button style={css.backBtn} onClick={() => loadAll()} title="Actualiser">🔄</button>
         <button style={{...css.badgePill,background:future.length>0?"rgba(255,255,255,0.25)":"rgba(255,255,255,0.12)"}}
           onClick={() => setShowMy(!showMy)}>
           📋 {future.length} RDV
@@ -1152,7 +1160,7 @@ function StaffAuth({ staffPwd, setStaffPwd, onAuth, setView }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-function StaffView({ practitioners, days, dayOffset, setDayOffset, staffPract, setStaffPract,
+function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staffPract, setStaffPract,
   getBooking, isSlotOpen, isRecurring, toggleOpen, toggleRecurring,
   unbook, staffBookSlot, addNote, moveBooking, staffTarget, setStaffTarget,
   staffPlayerName, setStaffPlayerName,
@@ -1191,6 +1199,7 @@ function StaffView({ practitioners, days, dayOffset, setDayOffset, staffPract, s
       <div style={css.pageHeader}>
         <button style={css.backBtn} onClick={()=>setView("home")}>←</button>
         <h2 style={css.pageTitle}>Gestion — Vue du jour</h2>
+        <button style={css.backBtn} onClick={()=>loadAll()} title="Actualiser">🔄</button>
         <div style={css.staffBadge}>Staff ✓</div>
       </div>
 
