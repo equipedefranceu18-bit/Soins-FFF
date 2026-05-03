@@ -146,7 +146,7 @@ export default function App() {
 
   // Player state
   const [playerName,    setPlayerName]    = useState("");
-  const [playerMode,    setPlayerMode]    = useState("byPract");
+  const [playerMode,    setPlayerMode]    = useState("bySlot");
   const [selectedPract, setSelectedPract] = useState(null);
   const [selectedDate,  setSelectedDate]  = useState(null);
   const [selectedTime,  setSelectedTime]  = useState(null);
