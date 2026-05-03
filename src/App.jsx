@@ -845,8 +845,8 @@ function ByPractGrid({ practitioners, days, selectedPract, onPractSelect, select
 function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, selectedTime,
   isAvailable, isSlotOpen, getSlotsForContext, isSplit, onSlotClick, bookings, playerName, getBooking }) {
 
-  const H1 = 56; // hauteur 1h
-  const H2 = 28; // hauteur 30min
+  const H1 = 56;
+  const H2 = 28;
   const d = days.length === 1 ? fmtDate(days[0]) : null;
   if (!d) return null;
   const past = isPast(d);
@@ -864,11 +864,10 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     );
   }
 
-  // Bouton pour un praticien à un horaire
   function PractBtn({ p, time, h }) {
     const booked = !!getBooking(p.id, d, time);
     const open   = isSlotOpen(p.id, d, time);
-    if (!booked && !open) return null; // fermé → invisible
+    if (!booked && !open) return null;
 
     const avail   = isAvailable(p.id, d, time);
     const sel     = selectedPract===p.id && selectedDate===d && selectedTime===time;
@@ -876,15 +875,15 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     const is30    = time.endsWith(":30") || isSplit(p.id, d, time);
 
     let bg, border, textColor, cursor;
-    if (booked)              { bg="#ebebeb"; border="#ccc";   textColor="#bbb"; cursor="not-allowed"; }
-    else if (blocked||!avail){ bg="#f5f5f5"; border="#ddd";   textColor="#ccc"; cursor="not-allowed"; }
-    else if (sel)            { bg=p.color;   border=p.color;  textColor="#fff"; cursor="pointer"; }
-    else                     { bg=p.color+"25"; border=p.color; textColor=p.color; cursor="pointer"; }
+    if (booked)               { bg="#ebebeb"; border="#ccc";    textColor="#bbb"; cursor="not-allowed"; }
+    else if (blocked||!avail) { bg="#f5f5f5"; border="#ddd";    textColor="#ccc"; cursor="not-allowed"; }
+    else if (sel)             { bg=p.color;   border=p.color;   textColor="#fff"; cursor="pointer"; }
+    else                      { bg=p.color+"25"; border=p.color; textColor=p.color; cursor="pointer"; }
 
     return (
       <button style={{
         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-        height: h-6, minWidth:44, padding:"0 6px", flexShrink:0,
+        height:h-6, minWidth:44, padding:"0 6px", flexShrink:0,
         background:bg, border:`2px solid ${border}`, borderRadius:10,
         cursor, gap:2, boxShadow:sel?`0 2px 10px ${p.color}55`:"none",
         transition:"all 0.15s",
@@ -896,6 +895,52 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
           {is30?"30'":"1h"}
         </span>
       </button>
+    );
+  }
+
+  // Colonne kinés pour une ligne splittée : 1h en grand + 30' en double mini
+  function KinesSplitCol({ baseTime }) {
+    const halfTime = `${baseTime.split(":")[0].padStart(2,"0")}:30`;
+    const kines1h  = kines.filter(p => !isSplit(p.id,d,baseTime));
+    const kines30  = kines.filter(p =>  isSplit(p.id,d,baseTime));
+
+    return (
+      <div style={{flex:4,borderRight:SEP,display:"flex",alignItems:"center",justifyContent:"center",
+        gap:4,padding:"0 6px",background:T.surface,opacity:past?0.45:1,height:H1,overflow:"hidden"}}>
+        {/* Kinés 1h — grand bouton */}
+        {kines1h.map(p => <PractBtn key={p.id} p={p} time={baseTime} h={H1} />)}
+        {/* Kinés 30' — deux mini-boutons empilés */}
+        {kines30.map(p => (
+          <div key={p.id} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",justifyContent:"center",height:H1}}>
+            <PractBtn p={p} time={baseTime} h={H2} />
+            <PractBtn p={p} time={halfTime} h={H2} />
+          </div>
+        ))}
+        {kines1h.length===0 && kines30.length===0 &&
+          !kines.some(p=>isSlotOpen(p.id,d,baseTime)||isSlotOpen(p.id,d,halfTime)||!!getBooking(p.id,d,baseTime)||!!getBooking(p.id,d,halfTime)) &&
+          <span style={{fontSize:11,opacity:0.15}}>—</span>}
+      </div>
+    );
+  }
+
+  function OsteoSplitCol({ baseTime }) {
+    const halfTime = `${baseTime.split(":")[0].padStart(2,"0")}:30`;
+    const osteo1h  = osteos.filter(p => !isSplit(p.id,d,baseTime));
+    const osteo30  = osteos.filter(p =>  isSplit(p.id,d,baseTime));
+    return (
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",
+        gap:3,padding:"0 3px",background:"#faf5ff",opacity:past?0.45:1,height:H1,overflow:"hidden"}}>
+        {osteo1h.map(p => <PractBtn key={p.id} p={p} time={baseTime} h={H1} />)}
+        {osteo30.map(p => (
+          <div key={p.id} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",justifyContent:"center",height:H1}}>
+            <PractBtn p={p} time={baseTime} h={H2} />
+            <PractBtn p={p} time={halfTime} h={H2} />
+          </div>
+        ))}
+        {osteo1h.length===0 && osteo30.length===0 &&
+          !osteos.some(p=>isSlotOpen(p.id,d,baseTime)||isSlotOpen(p.id,d,halfTime)||!!getBooking(p.id,d,baseTime)||!!getBooking(p.id,d,halfTime)) &&
+          <span style={{fontSize:9,opacity:0.12}}>—</span>}
+      </div>
     );
   }
 
@@ -922,7 +967,6 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     const needsSplit = practitioners.some(p => isSplit(p.id, d, baseTime));
 
     if (!needsSplit) {
-      // Ligne 1h simple
       return (
         <div key={baseTime} style={{display:"flex",height:H1,borderBottom:`1px solid ${T.border2}`}}>
           <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",
@@ -947,51 +991,20 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
       );
     }
 
-    // Créneau splitté : bloc H1 total = deux demi-lignes H2 chacune
+    // Ligne splittée : un seul bloc H1 avec kinés 1h grands + kinés 30' empilés
     return (
-      <div key={baseTime} style={{borderBottom:`1px solid ${T.border2}`}}>
-        {/* :00 — H2 */}
-        <div style={{display:"flex",height:H2,borderBottom:`1px dashed ${T.border2}`}}>
-          <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",
-            flexDirection:"column",alignItems:"flex-end",justifyContent:"center",
-            padding:"0 8px",background:T.surface2}}>
-            <span style={{fontSize:10,fontWeight:700,color:T.textMid}}>{baseTime}</span>
-            <span style={{fontSize:7,color:"#e05090"}}>30'</span>
-          </div>
-          <div style={{flex:4,borderRight:SEP,display:"flex",alignItems:"center",justifyContent:"center",
-            gap:4,padding:"0 6px",background:T.surface,opacity:past?0.45:1}}>
-            {kines.map(p=><PractBtn key={p.id} p={p} time={baseTime} h={H2}/>)}
-            {!kines.some(p=>isSlotOpen(p.id,d,baseTime)||!!getBooking(p.id,d,baseTime))&&
-              <span style={{fontSize:9,opacity:0.12}}>—</span>}
-          </div>
-          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",
-            gap:3,padding:"0 3px",background:"#faf5ff",opacity:past?0.45:1}}>
-            {osteos.map(p=><PractBtn key={p.id} p={p} time={baseTime} h={H2}/>)}
-            {!osteos.some(p=>isSlotOpen(p.id,d,baseTime)||!!getBooking(p.id,d,baseTime))&&
-              <span style={{fontSize:9,opacity:0.12}}>—</span>}
+      <div key={baseTime} style={{display:"flex",height:H1,borderBottom:`1px solid ${T.border2}`}}>
+        <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",
+          flexDirection:"column",alignItems:"flex-end",justifyContent:"center",
+          padding:"0 8px",background:T.surface2}}>
+          <span style={{fontSize:10,fontWeight:700,color:T.textMid}}>{baseTime}</span>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:7,color:"#e05090"}}>{baseTime} 30'</div>
+            <div style={{fontSize:7,color:"#e05090"}}>{halfTime} 30'</div>
           </div>
         </div>
-        {/* :30 — H2 */}
-        <div style={{display:"flex",height:H2}}>
-          <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",
-            flexDirection:"column",alignItems:"flex-end",justifyContent:"center",
-            padding:"0 8px",background:T.surface2}}>
-            <span style={{fontSize:10,color:"#e05090"}}>{halfTime}</span>
-            <span style={{fontSize:7,color:"#e05090"}}>30'</span>
-          </div>
-          <div style={{flex:4,borderRight:SEP,display:"flex",alignItems:"center",justifyContent:"center",
-            gap:4,padding:"0 6px",background:T.surface,opacity:past?0.45:1}}>
-            {kines.map(p=><PractBtn key={p.id} p={p} time={halfTime} h={H2}/>)}
-            {!kines.some(p=>isSlotOpen(p.id,d,halfTime)||!!getBooking(p.id,d,halfTime))&&
-              <span style={{fontSize:9,opacity:0.12}}>—</span>}
-          </div>
-          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",
-            gap:3,padding:"0 3px",background:"#faf5ff",opacity:past?0.45:1}}>
-            {osteos.map(p=><PractBtn key={p.id} p={p} time={halfTime} h={H2}/>)}
-            {!osteos.some(p=>isSlotOpen(p.id,d,halfTime)||!!getBooking(p.id,d,halfTime))&&
-              <span style={{fontSize:9,opacity:0.12}}>—</span>}
-          </div>
-        </div>
+        <KinesSplitCol baseTime={baseTime} />
+        <OsteoSplitCol baseTime={baseTime} />
       </div>
     );
   });
