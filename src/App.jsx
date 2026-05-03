@@ -946,39 +946,102 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
       );
     }
 
-    // Split rows — approche simple : deux lignes normales
-    // Les praticiens 1h apparaissent dans les DEUX lignes (même bouton)
-    // Les praticiens 30' apparaissent uniquement dans leur demi-ligne
+    // Bloc splitté : hauteur totale H*2, chaque praticien a un bouton
+    // dont la hauteur indique clairement 1h (H*2) ou 30' (H)
+    // Tous les boutons sont dans un flex centré — pas de sous-lignes, pas de superposition
+    const allAvailK = [
+      ...availK1h.map(p => ({p, time:baseTime, h:H*2-6, label:"1h"})),
+      ...availK00.map(p => ({p, time:baseTime, h:H-6, label:"30'", top:true})),
+      ...availK30.filter(p => !availK00.includes(p)).map(p => ({p, time:halfTime, h:H-6, label:"30'", top:false})),
+    ];
+    // Pour les 30' splittés : montrer les deux demi-créneaux séparément
+    const splitK = [...new Set([...availK00, ...availK30])];
+    const allAvailO = [
+      ...availO1h.map(p => ({p, time:baseTime, h:H*2-6, label:"1h"})),
+      ...availO00.map(p => ({p, time:baseTime, h:H-6, label:"30'"})),
+      ...availO30.filter(p => !availO00.includes(p)).map(p => ({p, time:halfTime, h:H-6, label:"30'"})),
+    ];
+
     return (
       <div key={baseTime} style={{borderBottom:`1px solid ${T.border2}`}}>
-        {/* Ligne :00 */}
-        <div style={{display:"flex", height:H, borderBottom:`1px dashed ${T.border2}`}}>
+        {/* Ligne axe temps */}
+        <div style={{display:"flex", minHeight:H*2}}>
           <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",alignItems:"flex-end",justifyContent:"center",padding:"0 8px",background:T.surface2}}>
             <span style={{fontSize:10,fontWeight:700,color:T.textMid}}>{baseTime}</span>
-            <span style={{fontSize:7,color:"#e05090"}}>30'</span>
+            <div style={{fontSize:7,color:"#e05090",marginTop:2}}>
+              <div>{baseTime} 30'</div>
+              <div>{halfTime} 30'</div>
+            </div>
           </div>
-          <div style={{flex:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4,padding:"2px 4px",background:T.surface,borderRight:`2px solid ${T.navy}22`,opacity:past?0.45:1}}>
-            {[...availK1h,...availK00].map(p=><PractBtn key={p.id} p={p} time={baseTime} h={H} />)}
-            {availK1h.length===0&&availK00.length===0&&<span style={{fontSize:9,opacity:0.12}}>—</span>}
+
+          {/* Colonne Kinés */}
+          <div style={{flex:4,borderRight:`2px solid ${T.navy}22`,background:T.surface,opacity:past?0.45:1}}>
+            {splitK.length === 0 && availK1h.length === 0 ? (
+              <div style={{height:H*2,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <span style={{fontSize:9,opacity:0.12}}>—</span>
+              </div>
+            ) : (
+              <div style={{display:"flex",height:H*2,alignItems:"center",justifyContent:"center",gap:4,padding:"0 4px",flexWrap:"wrap"}}>
+                {/* Praticiens 1h */}
+                {availK1h.map(p => (
+                  <div key={p.id} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:H*2-6,minWidth:40,padding:"0 6px",background:selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?p.color:p.color+"22",border:`2px solid ${p.color}`,borderRadius:10,cursor:"pointer",boxShadow:selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?`0 2px 8px ${p.color}44`:"none"}}
+                    onClick={()=>onSlotClick(p.id,d,baseTime)}>
+                    <span style={{fontSize:12,fontWeight:800,color:selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?"#fff":p.color}}>{p.initials}</span>
+                    <span style={{fontSize:8,color:selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?"rgba(255,255,255,0.8)":p.color+"99",fontWeight:700}}>1h</span>
+                  </div>
+                ))}
+                {/* Praticiens 30' : colonne avec deux mini-boutons */}
+                {splitK.map(p => {
+                  const has00 = availK00.includes(p);
+                  const has30 = availK30.includes(p);
+                  return (
+                    <div key={p.id} style={{display:"flex",flexDirection:"column",gap:2,height:H*2-6,justifyContent:"center"}}>
+                      <div style={{height:H-6,display:"flex",alignItems:"center",justifyContent:"center",minWidth:40,padding:"0 5px",background:has00&&selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?p.color:has00?p.color+"22":"#f5f5f5",border:`2px solid ${has00?p.color:"#ddd"}`,borderRadius:8,cursor:has00?"pointer":"default",opacity:has00?1:0.3}}
+                        onClick={()=>has00&&onSlotClick(p.id,d,baseTime)}>
+                        <div style={{textAlign:"center"}}>
+                          <div style={{fontSize:11,fontWeight:800,color:has00&&selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?"#fff":has00?p.color:"#aaa"}}>{p.initials}</div>
+                          <div style={{fontSize:7,color:has00?p.color+"99":"#aaa"}}>30'</div>
+                        </div>
+                      </div>
+                      <div style={{height:H-6,display:"flex",alignItems:"center",justifyContent:"center",minWidth:40,padding:"0 5px",background:has30&&selectedPract===p.id&&selectedDate===d&&selectedTime===halfTime?p.color:has30?p.color+"22":"#f5f5f5",border:`2px solid ${has30?p.color:"#ddd"}`,borderRadius:8,cursor:has30?"pointer":"default",opacity:has30?1:0.3}}
+                        onClick={()=>has30&&onSlotClick(p.id,d,halfTime)}>
+                        <div style={{textAlign:"center"}}>
+                          <div style={{fontSize:11,fontWeight:800,color:has30&&selectedPract===p.id&&selectedDate===d&&selectedTime===halfTime?"#fff":has30?p.color:"#aaa"}}>{p.initials}</div>
+                          <div style={{fontSize:7,color:has30?p.color+"99":"#aaa"}}>30'</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {availK1h.length===0&&splitK.length===0&&<span style={{fontSize:9,opacity:0.12}}>—</span>}
+              </div>
+            )}
           </div>
-          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"2px 2px",background:"#faf5ff",opacity:past?0.45:1}}>
-            {[...availO1h,...availO00].map(p=><PractBtn key={p.id} p={p} time={baseTime} h={H} />)}
-            {availO1h.length===0&&availO00.length===0&&<span style={{fontSize:9,opacity:0.12}}>—</span>}
-          </div>
-        </div>
-        {/* Ligne :30 */}
-        <div style={{display:"flex", height:H}}>
-          <div style={{width:70,flexShrink:0,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",alignItems:"flex-end",justifyContent:"center",padding:"0 8px",background:T.surface2}}>
-            <span style={{fontSize:10,color:"#e05090"}}>{halfTime}</span>
-            <span style={{fontSize:7,color:"#e05090"}}>30'</span>
-          </div>
-          <div style={{flex:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4,padding:"2px 4px",background:T.surface,borderRight:`2px solid ${T.navy}22`,opacity:past?0.45:1}}>
-            {[...availK1h,...availK30].map(p=><PractBtn key={p.id} p={p} time={availK1h.includes(p)?baseTime:halfTime} h={H} />)}
-            {availK1h.length===0&&availK30.length===0&&<span style={{fontSize:9,opacity:0.12}}>—</span>}
-          </div>
-          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:3,padding:"2px 2px",background:"#faf5ff",opacity:past?0.45:1}}>
-            {[...availO1h,...availO30].map(p=><PractBtn key={p.id} p={p} time={availO1h.includes(p)?baseTime:halfTime} h={H} />)}
-            {availO1h.length===0&&availO30.length===0&&<span style={{fontSize:9,opacity:0.12}}>—</span>}
+
+          {/* Colonne Ostéo */}
+          <div style={{flex:1,background:"#faf5ff",opacity:past?0.45:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:2,padding:"0 2px"}}>
+            {availO1h.map(p => (
+              <div key={p.id} style={{height:H*2-6,minWidth:36,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 4px",background:selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?p.color:p.color+"22",border:`2px solid ${p.color}`,borderRadius:10,cursor:"pointer"}}
+                onClick={()=>onSlotClick(p.id,d,baseTime)}>
+                <span style={{fontSize:11,fontWeight:800,color:selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?"#fff":p.color}}>{p.initials}</span>
+                <span style={{fontSize:7,color:p.color+"99"}}>1h</span>
+              </div>
+            ))}
+            {availO00.map(p => (
+              <div key={"00-"+p.id} style={{height:H-6,minWidth:36,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 4px",background:selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?p.color:p.color+"22",border:`2px solid ${p.color}`,borderRadius:8,cursor:"pointer"}}
+                onClick={()=>onSlotClick(p.id,d,baseTime)}>
+                <span style={{fontSize:11,fontWeight:800,color:selectedPract===p.id&&selectedDate===d&&selectedTime===baseTime?"#fff":p.color}}>{p.initials}</span>
+                <span style={{fontSize:7,color:p.color+"99"}}>30'</span>
+              </div>
+            ))}
+            {availO30.map(p => (
+              <div key={"30-"+p.id} style={{height:H-6,minWidth:36,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 4px",background:selectedPract===p.id&&selectedDate===d&&selectedTime===halfTime?p.color:p.color+"22",border:`2px solid ${p.color}`,borderRadius:8,cursor:"pointer"}}
+                onClick={()=>onSlotClick(p.id,d,halfTime)}>
+                <span style={{fontSize:11,fontWeight:800,color:selectedPract===p.id&&selectedDate===d&&selectedTime===halfTime?"#fff":p.color}}>{p.initials}</span>
+                <span style={{fontSize:7,color:p.color+"99"}}>30'</span>
+              </div>
+            ))}
+            {availO1h.length===0&&availO00.length===0&&availO30.length===0&&<span style={{fontSize:9,opacity:0.12}}>—</span>}
           </div>
         </div>
       </div>
