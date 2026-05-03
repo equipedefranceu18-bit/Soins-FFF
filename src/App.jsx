@@ -879,8 +879,8 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     );
   }
 
-  // Bouton individuel
-  function Btn({ p, time, h, forceLabel }) {
+  // Bouton individuel — hauteur basée sur la PROPRE durée du slot, pas la hauteur de ligne
+  function Btn({ p, time, forceLabel }) {
     const booked = !!getBooking(p.id, d, time);
     const open   = isSlotOpen(p.id, d, time);
     if (!booked && !open) return <div style={{minWidth:44,flexShrink:0}} />;
@@ -889,7 +889,9 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     const sel     = selectedPract===p.id && selectedDate===d && selectedTime===time;
     const blocked = !booked && playerHasBookingAt(time);
     const dur = getSlotDuration(p.id, d, time);
-    const label   = forceLabel === "1h" ? "1h" : forceLabel?.includes(":") ? forceLabel : (dur === 60 ? "1h" : "30'");
+    const label   = forceLabel === "1h" ? "1h" : (dur === 60 ? "1h" : "30'");
+    // Hauteur propre : 1h → H1-6, 30' → H2-6
+    const btnH = dur === 60 ? H1 - 6 : H2 - 6;
 
     let bg, border, textColor, cursor;
     if (booked)               { bg="#ebebeb"; border="#ccc";    textColor="#bbb"; cursor="not-allowed"; }
@@ -900,7 +902,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     return (
       <button style={{
         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-        height:h-6, minWidth:44, padding:"0 6px", flexShrink:0,
+        height:btnH, minWidth:44, padding:"0 6px", flexShrink:0,
         background:bg, border:`2px solid ${border}`, borderRadius:10,
         cursor, gap:2, boxShadow:sel?`0 2px 10px ${p.color}55`:"none",
       }}
@@ -1030,15 +1032,13 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         </div>
         <div style={{flex:4,borderRight:SEP,display:"flex",alignItems:"center",justifyContent:"center",
           gap:6,padding:"0 4px",background:T.surface,opacity:past?0.45:1}}>
-          {kines.map(p => <Btn key={p.id} p={p} time={time} h={anyIs1h?H1:H2}
-            forceLabel={isPair(p,time)?"1h":undefined} />)}
+          {kines.map(p => <Btn key={p.id} p={p} time={time} />)}
           {!kines.some(p=>isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))&&
             <span style={{fontSize:11,opacity:0.15}}>—</span>}
         </div>
         <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",
           gap:4,padding:"0 2px",background:"#faf5ff",opacity:past?0.45:1}}>
-          {osteos.map(p => <Btn key={p.id} p={p} time={time} h={anyIs1h?H1:H2}
-            forceLabel={isPair(p,time)?"1h":undefined} />)}
+          {osteos.map(p => <Btn key={p.id} p={p} time={time} />)}
           {!osteos.some(p=>isSlotOpen(p.id,d,time)||!!getBooking(p.id,d,time))&&
             <span style={{fontSize:9,opacity:0.12}}>—</span>}
         </div>
