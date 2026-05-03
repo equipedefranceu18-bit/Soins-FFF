@@ -704,7 +704,7 @@ function PlayerView({
           practitioners={practitioners} kines={kines} days={singleDay}
           selectedPract={selectedPract} selectedDate={selectedDate} selectedTime={selectedTime}
           isAvailable={isAvailable} isSlotOpen={isSlotOpen} getSlotsForContext={getSlotsForContext} isSplit={isSplit}
-          onSlotClick={handleSlotClick} bookings={bookings} playerName={playerName}
+          onSlotClick={handleSlotClick} bookings={bookings} playerName={playerName} getBooking={getBooking}
         />
 
       {canConfirm && (
@@ -843,7 +843,7 @@ function ByPractGrid({ practitioners, days, selectedPract, onPractSelect, select
 }
 
 function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, selectedTime,
-  isAvailable, isSlotOpen, getSlotsForContext, isSplit, onSlotClick, bookings, playerName }) {
+  isAvailable, isSlotOpen, getSlotsForContext, isSplit, onSlotClick, bookings, playerName, getBooking }) {
 
   const H = 28;
   const d = days.length === 1 ? fmtDate(days[0]) : null;
@@ -864,26 +864,47 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     );
   }
 
+  // Un créneau est visible si le slot est ouvert (réservé ou disponible)
+  function isSlotVisible(pId, time) {
+    return isSlotOpen(pId, d, time) || !!getBooking(pId, d, time);
+  }
+
   function PractBtn({ p, time, h }) {
-    const sel = selectedPract===p.id && selectedDate===d && selectedTime===time;
-    const is30 = time.endsWith(":30") || isSplit(p.id, d, time);
-    const blocked = playerHasBookingAt(time);
+    const sel     = selectedPract===p.id && selectedDate===d && selectedTime===time;
+    const booked  = !!getBooking(p.id, d, time);
+    const avail   = isAvailable(p.id, d, time);
+    const blocked = playerHasBookingAt(time) && !booked;
+    const is30    = time.endsWith(":30") || isSplit(p.id, d, time);
+
+    let bg, border, textColor, cursor, label;
+
+    if (booked) {
+      // Créneau réservé — grisé, non cliquable
+      bg = "#e8e8e8"; border = "#ccc"; textColor = "#aaa"; cursor = "not-allowed";
+      label = is30 ? "30'" : "1h";
+    } else if (!avail || blocked) {
+      bg = "#f0f0f0"; border = "#ddd"; textColor = "#bbb"; cursor = "not-allowed";
+      label = is30 ? "30'" : "1h";
+    } else if (sel) {
+      bg = p.color; border = p.color; textColor = "#fff"; cursor = "pointer";
+      label = is30 ? "30'" : "1h";
+    } else {
+      bg = p.color+"22"; border = p.color; textColor = p.color; cursor = "pointer";
+      label = is30 ? "30'" : "1h";
+    }
+
     return (
       <button style={{
         display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-        height: h-6, minWidth:42, padding:"0 6px",
-        background: blocked ? "#eee" : sel ? p.color : p.color+"22",
-        border: `2px solid ${blocked ? "#ccc" : p.color}`,
-        borderRadius:10, cursor: blocked ? "not-allowed" : "pointer",
-        gap:1, opacity: blocked ? 0.4 : 1,
+        height: h, minWidth:42, padding:"0 6px",
+        background: bg, border:`2px solid ${border}`,
+        borderRadius:10, cursor, gap:1, flexShrink:0,
         boxShadow: sel ? `0 2px 8px ${p.color}44` : "none",
-        flexShrink:0,
       }}
-        onClick={() => !blocked && onSlotClick(p.id, d, time)}
-        title={blocked ? "Vous avez déjà un RDV à cette heure" : `${p.name} — ${is30?"30 min":"1 heure"}`}>
-        <span style={{fontSize:12, fontWeight:800, color:sel?"#fff":blocked?"#aaa":p.color}}>{p.initials}</span>
-        {is30 && <span style={{fontSize:7, color:sel?"rgba(255,255,255,0.8)":p.color+"99"}}>30'</span>}
-        {!is30 && <span style={{fontSize:7, color:sel?"rgba(255,255,255,0.7)":p.color+"88"}}>1h</span>}
+        onClick={() => (avail && !blocked && !booked) && onSlotClick(p.id, d, time)}
+        title={booked ? "Créneau déjà réservé" : blocked ? "Vous avez déjà un RDV à cette heure" : `${p.name} — ${is30?"30 min":"1 heure"}`}>
+        <span style={{fontSize:12, fontWeight:800, color:textColor}}>{p.initials}</span>
+        <span style={{fontSize:7, color: sel?"rgba(255,255,255,0.8)":booked?"#bbb":p.color+"88", fontWeight:700}}>{label}</span>
       </button>
     );
   }
@@ -915,12 +936,12 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     const halfTime = `${baseTime.split(":")[0].padStart(2,"0")}:30`;
     const needsSplit = practitioners.some(p => isSplit(p.id, d, baseTime));
 
-    const availK1h = kines.filter(p => !isSplit(p.id,d,baseTime) && isAvailable(p.id,d,baseTime));
-    const availO1h = osteos.filter(p => !isSplit(p.id,d,baseTime) && isAvailable(p.id,d,baseTime));
-    const availK00 = kines.filter(p => isSplit(p.id,d,baseTime) && isAvailable(p.id,d,baseTime));
-    const availO00 = osteos.filter(p => isSplit(p.id,d,baseTime) && isAvailable(p.id,d,baseTime));
-    const availK30 = kines.filter(p => isSplit(p.id,d,baseTime) && isAvailable(p.id,d,halfTime));
-    const availO30 = osteos.filter(p => isSplit(p.id,d,baseTime) && isAvailable(p.id,d,halfTime));
+    const availK1h = kines.filter(p => !isSplit(p.id,d,baseTime) && isSlotVisible(p.id,baseTime));
+    const availO1h = osteos.filter(p => !isSplit(p.id,d,baseTime) && isSlotVisible(p.id,baseTime));
+    const availK00 = kines.filter(p => isSplit(p.id,d,baseTime) && isSlotVisible(p.id,baseTime));
+    const availO00 = osteos.filter(p => isSplit(p.id,d,baseTime) && isSlotVisible(p.id,baseTime));
+    const availK30 = kines.filter(p => isSplit(p.id,d,baseTime) && isSlotVisible(p.id,halfTime));
+    const availO30 = osteos.filter(p => isSplit(p.id,d,baseTime) && isSlotVisible(p.id,halfTime));
 
     const cellStyle = (flex, extra={}) => ({
       flex, display:"flex", alignItems:"center", justifyContent:"center",
