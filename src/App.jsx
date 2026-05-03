@@ -914,7 +914,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     <div style={{display:"flex", height:48, background:T.surface3, borderBottom:`2px solid ${T.border}`}}>
       <div style={{width:70, flexShrink:0, borderRight:`1px solid ${T.border}`}} />
       <div style={{flex:4, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-        borderRight:`2px solid ${T.navy}33`,
+        borderRight:`2px solid ${T.navy}44`,
         background: d===todayStr() ? T.navy+"14" : isWeekend(days[0]) ? "#f5f0f8" : T.surface3,
         borderBottom: d===todayStr() ? `3px solid ${T.navy}` : "none",
       }}>
