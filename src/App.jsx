@@ -362,8 +362,7 @@ export default function App() {
           selectedTime={selectedTime} setSelectedTime={setSelectedTime}
           isAvailable={isAvailable} getBooking={getBooking}
           isSlotOpen={isSlotOpen} getSlotsForContext={getSlotsForContext} isSplit={isSplit}
-          confirmBooking={confirmBooking} bookings={bookings} getSlotDuration,
-getSlotDuration={getSlotDuration}
+          confirmBooking={confirmBooking} bookings={bookings} getSlotDuration={getSlotDuration}
           confirmation={confirmation} setConfirmation={setConfirmation}
           myBookings={myBookings} cancelMyBooking={cancelMyBooking}
           setView={setView}
@@ -547,7 +546,7 @@ function PlayerView({
   bookingRole, setBookingRole, days, dayOffset, setDayOffset,
   kines, osteos, selectedPract, setSelectedPract,
   selectedDate, setSelectedDate, selectedTime, setSelectedTime,
-  isAvailable, getBooking, isSlotOpen, getSlotsForContext, isSplit, confirmBooking, bookings,
+  isAvailable, getBooking, isSlotOpen, getSlotsForContext, isSplit, confirmBooking, bookings, getSlotDuration,
   confirmation, setConfirmation, myBookings, cancelMyBooking, setView
 }) {
   // Tous les praticiens ensemble — kinés + ostéo dans la même vue
