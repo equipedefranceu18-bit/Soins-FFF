@@ -388,6 +388,7 @@ export default function App() {
           BASE_SLOTS={BASE_SLOTS} isHalfSlot={isHalfSlot}
           getPastBookings={getPastBookings}
           getSlotDuration={getSlotDuration}
+          bookings={bookings}
           PLAYERS={PLAYERS} setView={setView}
         />
       )}
@@ -1256,9 +1257,10 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
   unbook, staffBookSlot, addNote, moveBooking, staffTarget, setStaffTarget,
   staffPlayerName, setStaffPlayerName,
   getSlotsForContext, isSplit, toggleSplit, BASE_SLOTS, isHalfSlot,
-  getPastBookings, getSlotDuration, PLAYERS, setView }) {
+  getPastBookings, getSlotDuration, bookings, PLAYERS, setView }) {
 
   const [dvSubMode, setDvSubMode] = useState("slots");
+  const [showStats, setShowStats] = useState(false);
   const [staffViewDay, setStaffViewDay] = useState(todayStr());
   const [noteModal,    setNoteModal]    = useState(null);
   const [moveModal,    setMoveModal]    = useState(null); // { practId, date, time, booking }
@@ -1293,6 +1295,11 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
         <button style={css.backBtn} onClick={()=>loadAll()} title="Actualiser">🔄</button>
         <div style={css.staffBadge}>Staff ✓</div>
       </div>
+
+      {/* Stats modal */}
+      {showStats && (
+        <StatsModal onClose={()=>setShowStats(false)} bookings={bookings} practitioners={practitioners} />
+      )}
 
       {/* Note modal */}
       {noteModal && (
@@ -1355,6 +1362,10 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
             {label}
           </button>
         ))}
+        <button style={{...css.staffActBtn, background:"#f0f4ff", border:`1px solid ${T.navy}44`, color:T.navy}}
+          onClick={()=>setShowStats(true)}>
+          📊 Stats
+        </button>
       </div>
       <div style={{padding:"0 20px 8px",fontSize:12,color:"#8b949e"}}>{currentMode?.hint}</div>
 
@@ -1391,7 +1402,7 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
                         </div>
                         {b.note && (
                           <div style={{fontSize:12,color:"#c9d1d9",marginTop:4,padding:"4px 8px",background:"#21262d",borderRadius:6,borderLeft:`2px solid ${p.color}55`}}>
-                            💬 {b.note}
+                            💬 {noteToDisplay(b.note)}
                           </div>
                         )}
                       </div>
@@ -1641,7 +1652,7 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
           </div>
           {booking.note && (
             <div style={{fontSize:8, color:T.textDim, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
-              💬 {booking.note}
+              💬 {noteToDisplay(booking.note)}
             </div>
           )}
         </div>
@@ -1759,7 +1770,7 @@ function BookingActionModal({ modal, kines, pract, onNote, onMove, onDelete, onC
           <div>
             <div style={{fontWeight:800,fontSize:16}}>{booking.player}</div>
             <div style={{fontSize:12,color:"#8b949e"}}>{fmtLong(date)} · {time} · <span style={{color:pract.color}}>{pract.name}</span></div>
-            {booking.note && <div style={{fontSize:11,color:"#8b949e",marginTop:2}}>💬 {booking.note}</div>}
+            {booking.note && <div style={{fontSize:11,color:"#8b949e",marginTop:2}}>💬 {noteToDisplay(booking.note)}</div>}
           </div>
         </div>
 
@@ -1769,7 +1780,7 @@ function BookingActionModal({ modal, kines, pract, onNote, onMove, onDelete, onC
             <span style={{fontSize:18}}>{booking.note?"✏️":"💬"}</span>
             <div style={{textAlign:"left"}}>
               <div style={{fontWeight:700}}>{booking.note ? "Modifier le commentaire" : "Ajouter un commentaire"}</div>
-              {booking.note && <div style={{fontSize:11,opacity:0.6,marginTop:1}}>{booking.note}</div>}
+              {booking.note && <div style={{fontSize:11,opacity:0.6,marginTop:1}}>{noteToDisplay(booking.note)}</div>}
             </div>
           </button>
 
@@ -1818,49 +1829,246 @@ function BookingActionModal({ modal, kines, pract, onNote, onMove, onDelete, onC
   );
 }
 
+// ─── Soins items config ──────────────────────────────────────────────────────
+const SOIN_ITEMS_SIMPLE = ["Récup", "Étirements", "Contusion", "Isocinétique", "Ondes de choc"];
+const SOIN_ITEMS_SIDE   = ["Genou", "Cheville", "Tendon d'Achille", "Tendon rotulien", "Mollet", "Quadriceps", "Ischio-jambiers"];
+
+// Sérialiser/désérialiser la note (JSON enrichi + texte libre)
+function parseNote(raw) {
+  if (!raw) return { items: {}, text: "" };
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && "items" in parsed) return parsed;
+  } catch {}
+  return { items: {}, text: raw }; // ancienne note texte brut
+}
+function serializeNote(items, text) {
+  const hasItems = Object.keys(items).some(k => items[k]);
+  if (!hasItems && !text.trim()) return "";
+  return JSON.stringify({ items, text: text.trim() });
+}
+function noteToDisplay(raw) {
+  const { items, text } = parseNote(raw);
+  const parts = [];
+  for (const key of SOIN_ITEMS_SIMPLE) {
+    if (items[key]) parts.push(key);
+  }
+  for (const key of SOIN_ITEMS_SIDE) {
+    if (items[key+"_G"]) parts.push(key+" G");
+    if (items[key+"_D"]) parts.push(key+" D");
+  }
+  if (text) parts.push(text);
+  return parts.join(" · ");
+}
+
 // ─── Note Modal ───────────────────────────────────────────────────────────────
 function NoteModal({ note, player, date, time, pract, onSave, onClose }) {
-  const [text, setText] = useState(note);
+  const parsed = parseNote(note);
+  const [items, setItems] = useState(parsed.items || {});
+  const [text, setText]   = useState(parsed.text || "");
+
+  function toggleItem(key) {
+    setItems(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  const hasAny = Object.values(items).some(Boolean) || text.trim();
+
   return (
     <div style={css.modalOverlay} onClick={onClose}>
-      <div style={css.modalCard} onClick={e=>e.stopPropagation()}>
+      <div style={{...css.modalCard, maxWidth:480, maxHeight:"90vh", overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
         {/* Header */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
           <div style={{...css.practAvatar,background:pract.color,width:32,height:32,fontSize:12,flexShrink:0}}>{pract.initials}</div>
           <div>
             <div style={{fontWeight:700,fontSize:15}}>{player}</div>
-            <div style={{fontSize:12,color:"#8b949e"}}>{fmtLong(date)} · {time} · {pract.name}</div>
+            <div style={{fontSize:12,color:T.textDim}}>{fmtLong(date)} · {time} · {pract.name}</div>
           </div>
         </div>
 
-        <label style={{...css.label,marginBottom:8}}>💬 Commentaire sur le soin</label>
-        <textarea
-          style={{
-            width:"100%", background:"#0d1117", border:"1px solid #30363d",
-            borderRadius:10, padding:"12px", color:"#e6edf3", fontSize:14,
-            resize:"vertical", minHeight:100, fontFamily:"inherit", boxSizing:"border-box",
-            outline:"none",
-          }}
-          placeholder="Ex: Massage quadriceps G, électrostimulation, bilan de la cheville..."
-          value={text}
-          onChange={e=>setText(e.target.value)}
-          autoFocus
-        />
+        {/* Items simples */}
+        <div style={{marginBottom:14}}>
+          <div style={{...css.label, marginBottom:8}}>Type de soin</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {SOIN_ITEMS_SIMPLE.map(item => (
+              <button key={item} onClick={()=>toggleItem(item)} style={{
+                padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:600, cursor:"pointer",
+                border:`2px solid ${items[item] ? T.navy : T.border}`,
+                background: items[item] ? T.navy : T.surface2,
+                color: items[item] ? "#fff" : T.textMid,
+                transition:"all 0.15s",
+              }}>{items[item] ? "✓ " : ""}{item}</button>
+            ))}
+          </div>
+        </div>
 
-        <div style={{display:"flex",gap:8,marginTop:12}}>
-          <button style={{...css.btn,...css.btnConfirm,flex:1}} onClick={()=>onSave(text.trim())}>
+        {/* Items avec côté G/D */}
+        <div style={{marginBottom:14}}>
+          <div style={{...css.label, marginBottom:8}}>Zone anatomique <span style={{fontWeight:400,textTransform:"none",letterSpacing:0,color:T.textDim}}>(choisir le côté)</span></div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {SOIN_ITEMS_SIDE.map(item => (
+              <div key={item} style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:13,color:T.textMid,flex:1,fontWeight:600}}>{item}</span>
+                {["G","D"].map(side => {
+                  const k = item+"_"+side;
+                  const active = items[k];
+                  return (
+                    <button key={side} onClick={()=>toggleItem(k)} style={{
+                      width:40, height:32, borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer",
+                      border:`2px solid ${active ? (side==="G"?"#1565c0":"#c62828") : T.border}`,
+                      background: active ? (side==="G"?"#1565c022":"#c6282822") : T.surface2,
+                      color: active ? (side==="G"?"#1565c0":"#c62828") : T.textDim,
+                      transition:"all 0.15s",
+                    }}>{side}</button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Commentaire libre */}
+        <div style={{marginBottom:14}}>
+          <div style={{...css.label, marginBottom:6}}>Commentaire libre</div>
+          <textarea style={{
+            width:"100%", background:T.surface2, border:`1px solid ${T.border}`,
+            borderRadius:10, padding:"10px 12px", color:T.text, fontSize:13,
+            resize:"vertical", minHeight:64, fontFamily:"inherit", boxSizing:"border-box", outline:"none",
+          }}
+            placeholder="Remarques complémentaires..."
+            value={text} onChange={e=>setText(e.target.value)}
+          />
+        </div>
+
+        <div style={{display:"flex",gap:8}}>
+          <button style={{...css.btn,...css.btnConfirm,flex:1}}
+            onClick={()=>onSave(serializeNote(items,text))}>
             Enregistrer ✓
           </button>
-          {text && (
-            <button style={{...css.btn,background:"#2a1a1a",border:"1px solid #f85149",color:"#f85149",fontSize:13,padding:"10px 14px"}}
-              onClick={()=>{ setText(""); onSave(""); }}>
+          {hasAny && (
+            <button style={{...css.btn,background:"#fff0f0",border:`1px solid ${T.red}`,color:T.red,fontSize:13,padding:"10px 14px"}}
+              onClick={()=>{ setItems({}); setText(""); onSave(""); }}>
               Effacer
             </button>
           )}
-          <button style={{...css.btn,background:"#21262d",color:"#8b949e",fontSize:13,padding:"10px 14px"}}
+          <button style={{...css.btn,background:T.surface2,color:T.textDim,fontSize:13,padding:"10px 14px"}}
             onClick={onClose}>
             Annuler
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Stats Modal ──────────────────────────────────────────────────────────────
+function StatsModal({ onClose, bookings, practitioners }) {
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo,   setDateTo]   = useState("");
+  const [practFilter, setPractFilter] = useState("");
+
+  const allBookings = Object.entries(bookings).map(([k,v]) => {
+    const [pId, date, time] = k.split("|");
+    return { pId, date, time, ...v };
+  });
+
+  const filtered = allBookings.filter(b => {
+    if (practFilter && b.pId !== practFilter) return false;
+    if (dateFrom && b.date < dateFrom) return false;
+    if (dateTo   && b.date > dateTo)   return false;
+    return true;
+  });
+
+  // Compter les items
+  const counts = {};
+  const allKeys = [
+    ...SOIN_ITEMS_SIMPLE,
+    ...SOIN_ITEMS_SIDE.flatMap(s => [s+"_G", s+"_D"]),
+  ];
+  for (const k of allKeys) counts[k] = 0;
+
+  for (const b of filtered) {
+    const { items } = parseNote(b.note);
+    for (const k of allKeys) {
+      if (items[k]) counts[k]++;
+    }
+  }
+
+  const total = filtered.length;
+
+  return (
+    <div style={css.modalOverlay} onClick={onClose}>
+      <div style={{...css.modalCard, maxWidth:520, maxHeight:"92vh", overflowY:"auto", padding:20}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <h3 style={{margin:0,fontSize:17,color:T.navy,fontWeight:800}}>📊 Statistiques des soins</h3>
+          <button style={{...css.backBtn,background:T.surface2,color:T.textDim,border:`1px solid ${T.border}`}} onClick={onClose}>✕</button>
+        </div>
+
+        {/* Filtres */}
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:120}}>
+            <div style={{...css.label,marginBottom:4}}>Du</div>
+            <input type="date" style={{...css.input,padding:"8px 10px",fontSize:13}} value={dateFrom} onChange={e=>setDateFrom(e.target.value)} />
+          </div>
+          <div style={{flex:1,minWidth:120}}>
+            <div style={{...css.label,marginBottom:4}}>Au</div>
+            <input type="date" style={{...css.input,padding:"8px 10px",fontSize:13}} value={dateTo} onChange={e=>setDateTo(e.target.value)} />
+          </div>
+          <div style={{flex:1,minWidth:140}}>
+            <div style={{...css.label,marginBottom:4}}>Praticien</div>
+            <select style={{...css.select,padding:"8px 10px",fontSize:13}} value={practFilter} onChange={e=>setPractFilter(e.target.value)}>
+              <option value="">Tous</option>
+              {practitioners.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{background:T.surface2,borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:13,color:T.navy,fontWeight:600}}>
+          {total} soin{total>1?"s":""} sur la période
+        </div>
+
+        {/* Soins simples */}
+        <div style={{marginBottom:14}}>
+          <div style={{...css.label,marginBottom:8}}>Soins généraux</div>
+          {SOIN_ITEMS_SIMPLE.map(item => {
+            const n = counts[item] || 0;
+            const pct = total ? Math.round(n/total*100) : 0;
+            return (
+              <div key={item} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <span style={{width:160,fontSize:13,color:T.textMid,fontWeight:600}}>{item}</span>
+                <div style={{flex:1,height:14,background:T.surface3,borderRadius:7,overflow:"hidden"}}>
+                  <div style={{width:`${pct}%`,height:"100%",background:T.navy,borderRadius:7,transition:"width 0.4s"}} />
+                </div>
+                <span style={{fontSize:12,color:T.textDim,minWidth:40,textAlign:"right"}}>{n} ({pct}%)</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Zones anatomiques G/D */}
+        <div>
+          <div style={{...css.label,marginBottom:8}}>Zones anatomiques</div>
+          {SOIN_ITEMS_SIDE.map(item => {
+            const nG = counts[item+"_G"] || 0;
+            const nD = counts[item+"_D"] || 0;
+            const maxN = Math.max(nG, nD, 1);
+            return (
+              <div key={item} style={{marginBottom:8}}>
+                <div style={{fontSize:13,fontWeight:700,color:T.textMid,marginBottom:4}}>{item}</div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{fontSize:11,color:"#1565c0",fontWeight:700,width:14}}>G</span>
+                  <div style={{flex:1,height:12,background:T.surface3,borderRadius:6,overflow:"hidden"}}>
+                    <div style={{width:`${Math.round(nG/maxN*100)}%`,height:"100%",background:"#1565c0",borderRadius:6}} />
+                  </div>
+                  <span style={{fontSize:11,color:T.textDim,minWidth:32,textAlign:"right"}}>{nG}</span>
+                  <span style={{fontSize:11,color:"#c62828",fontWeight:700,width:14}}>D</span>
+                  <div style={{flex:1,height:12,background:T.surface3,borderRadius:6,overflow:"hidden"}}>
+                    <div style={{width:`${Math.round(nD/maxN*100)}%`,height:"100%",background:"#c62828",borderRadius:6}} />
+                  </div>
+                  <span style={{fontSize:11,color:T.textDim,minWidth:32,textAlign:"right"}}>{nD}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
