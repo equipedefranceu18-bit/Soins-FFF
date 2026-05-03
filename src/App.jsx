@@ -23,7 +23,7 @@ const PLAYERS = [
 ];
 
 const STAFF_PASSWORD = "staff2024";
-const BOOKING_ADVANCE_HOURS = 20;
+const BOOKING_ADVANCE_HOURS = 72;
 const CASCADE_AFTER_HOUR = 21; // slots from this hour onward require previous to be booked first
 
 // ─── TIME SLOTS ───────────────────────────────────────────────────────────────
