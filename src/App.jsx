@@ -1316,6 +1316,7 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
             staffTarget={staffTarget}
             getBooking={getBooking} isSlotOpen={isSlotOpen} isRecurring={isRecurring}
             getSlotsForContext={getSlotsForContext} isSplit={isSplit}
+            toggleOpen={toggleOpen}
             onCellClick={(practId, date, time) => {
               const booking = getBooking(practId, date, time);
               if (booking) {
@@ -1355,70 +1356,97 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
 // The time axis shows base 1h slots. Split kinés show 2×30' within their H1 space.
 // Other kinés keep H1 — no forced split bleeding across columns.
 function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpen, isRecurring,
-  getSlotsForContext, isSplit, onCellClick, unbook }) {
+  getSlotsForContext, isSplit, onCellClick, unbook, toggleOpen }) {
 
   const isPastDay = isPast(date);
-  // KEY: H1 = 2 × H30  →  a split column (2×H30) = exactly the height of an unsplit column (H1)
-  // This guarantees perfect row alignment across all columns.
-  const H30 = 28, H1 = 56, HEADER = 48;
+  const H30 = 28, HEADER = 48;
+  const [durationPicker, setDurationPicker] = useState(null); // {practId, time}
 
-  // All base (non-:30) slots that appear in at least one kiné for this date
-  const baseTimes = [...new Set(kines.flatMap(k =>
-    getSlotsForContext(k.id, date).filter(t => !t.endsWith(":30"))
-  ))].sort();
+  // Générer tous les créneaux de 30 minutes de 9h00 à 23h30
+  const allTimes = [];
+  for (let h = 9; h <= 23; h++) {
+    allTimes.push(`${String(h).padStart(2,"0")}:00`);
+    if (h < 23) allTimes.push(`${String(h).padStart(2,"0")}:30`);
+  }
+  // Ajouter 23:30 si besoin
+  allTimes.push("23:30");
 
-  // For each base time, build the row description:
-  // - If a kiné has this slot split, it shows [baseTime, baseTime:30] each H30
-  // - Otherwise it shows [baseTime] at H1
-  // The time-axis always shows H1 for each base slot (representing 1h block)
+  // Filtrer pour n'afficher que les créneaux où au moins un kiné a quelque chose
+  // OU afficher tous si aucun créneau ouvert (grille vide)
+  const hasAny = kines.some(k => getSlotsForContext(k.id, date).length > 0);
+  const displayTimes = allTimes; // toujours afficher tous les créneaux
+
+  function getSlotStatus(k, time) {
+    const booking  = getBooking(k.id, date, time);
+    const slotOpen = isSlotOpen(k.id, date, time);
+    const rec      = isRecurring(k.id, date, time);
+    return { booking, slotOpen, rec };
+  }
+
+  function handleCellClick(practId, time) {
+    if (isPastDay) return;
+    if (subMode === "open") {
+      const { slotOpen } = getSlotStatus(kines.find(k=>k.id===practId), time);
+      if (!slotOpen) {
+        // Créneau fermé → demander la durée
+        setDurationPicker({ practId, time });
+      } else {
+        // Créneau ouvert → fermer directement
+        onCellClick(practId, date, time);
+      }
+    } else {
+      onCellClick(practId, date, time);
+    }
+  }
+
+  async function openWithDuration(duration) {
+    if (!durationPicker) return;
+    const { practId, time } = durationPicker;
+    const h = parseInt(time.split(":")[0]);
+    const m = time.endsWith(":30") ? 30 : 0;
+
+    if (duration === 60) {
+      // Ouvrir ce créneau ET le suivant de 30'
+      onCellClick(practId, date, time); // ouvre time
+      // Calculer le créneau suivant
+      let nextH = h, nextM = m + 30;
+      if (nextM >= 60) { nextH++; nextM = 0; }
+      const nextTime = `${String(nextH).padStart(2,"0")}:${String(nextM).padStart(2,"0")}`;
+      if (nextH <= 23) onCellClick(practId, date, nextTime); // ouvre nextTime
+    } else {
+      // Ouvrir uniquement ce créneau de 30'
+      onCellClick(practId, date, time);
+    }
+    setDurationPicker(null);
+  }
 
   function renderCell(k, time) {
-    const isHalf    = time.endsWith(":30");
-    const splitThis = isSplit(k.id, date, time.endsWith(":30") ? time.replace(":30",":00") : time);
-    const cellIs30  = isHalf || splitThis;
-    const cellH     = cellIs30 ? H30 : H1;
-    const kSlots    = getSlotsForContext(k.id, date);
-    const inSlots   = kSlots.includes(time);
+    const { booking, slotOpen, rec } = getSlotStatus(k, time);
+    const isTarget = staffTarget?.practId===k.id && staffTarget?.date===date && staffTarget?.time===time;
 
     const commonStyle = {
-      height: cellH, flexShrink: 0,
+      height: H30, flexShrink: 0,
       borderBottom: `1px solid ${T.border2}`,
       borderRight: `1px solid ${T.border}`,
       overflow: "hidden",
       transition: "background 0.1s",
     };
 
-    if (!inSlots) {
-      return (
-        <div key={`${k.id}-${time}`} style={{
-          ...commonStyle,
-          background: "#f5f5fa",
-          opacity: 0.5,
-        }} />
-      );
-    }
-
-    const booking  = getBooking(k.id, date, time);
-    const slotOpen = isSlotOpen(k.id, date, time);
-    const rec      = isRecurring(k.id, date, time);
-    const isTarget = staffTarget?.practId===k.id && staffTarget?.date===date && staffTarget?.time===time;
-
     let bg = T.surface, bl = "3px solid transparent", indicator = null;
 
     if (booking) {
       bg = k.color+"18"; bl = `3px solid ${k.color}`;
       indicator = (
-        <div style={{width:"100%", overflow:"hidden", padding:"0 6px"}}>
-          <div style={{display:"flex", alignItems:"center", gap:3}}>
-            <span style={{fontSize:11, fontWeight:700, color:k.color, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1}}>
+        <div style={{width:"100%", overflow:"hidden", padding:"0 4px"}}>
+          <div style={{display:"flex", alignItems:"center", gap:2}}>
+            <span style={{fontSize:10, fontWeight:700, color:k.color, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1}}>
               {booking.player}
             </span>
-            {cellIs30 && <span style={{fontSize:8, background:k.color, color:"#fff", borderRadius:3, padding:"0 3px", flexShrink:0}}>30'</span>}
-            {booking.locked && <span style={{fontSize:9, opacity:0.5, flexShrink:0}}>🔒</span>}
+            {booking.locked && <span style={{fontSize:8, opacity:0.5, flexShrink:0}}>🔒</span>}
             {!isPastDay && <button style={css.deleteBtn} onClick={e=>{e.stopPropagation();unbook(k.id,date,time);}}>✕</button>}
           </div>
           {booking.note && (
-            <div style={{fontSize:9, color:T.textDim, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginTop:1}}>
+            <div style={{fontSize:8, color:T.textDim, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
               💬 {booking.note}
             </div>
           )}
@@ -1427,18 +1455,16 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
     } else if (slotOpen) {
       bg = rec ? k.color+"14" : k.color+"0c";
       bl = rec ? `3px solid ${k.color}88` : `3px solid ${k.color}55`;
-      const splitHint = subMode === "split" && !cellIs30;
       indicator = (
-        <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:1}}>
-          <span style={{fontSize:13, color:k.color, fontWeight:800, opacity:0.7}}>
-            {rec ? "↺" : splitHint ? "✂" : "✓"}
+        <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:0}}>
+          <span style={{fontSize:12, color:k.color, fontWeight:800, opacity:0.7}}>
+            {rec ? "↺" : "✓"}
           </span>
-          <span style={{fontSize:8, color:k.color+"99", fontWeight:600}}>{cellIs30 ? "30'" : "1h"}</span>
+          <span style={{fontSize:7, color:k.color+"99", fontWeight:600}}>30'</span>
         </div>
       );
     } else {
-      const hint = subMode==="recurring" ? "↺" : subMode==="split"&&!isHalf ? "✂" : "+";
-      indicator = <span style={{fontSize:12, color:T.textDim, opacity:0.3}}>{hint}</span>;
+      indicator = <span style={{fontSize:10, color:T.textDim, opacity:0.2}}>+</span>;
     }
 
     if (isTarget) { bg="#fffbe8"; bl=`3px solid ${T.goldBright}`; }
@@ -1448,43 +1474,82 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
         ...commonStyle,
         background: bg, borderLeft: bl,
         display:"flex", alignItems:"center", justifyContent:"center",
-        cursor: (subMode==="split" && isHalf) ? "default" : "pointer",
-        opacity: (subMode==="split" && isHalf) ? 0.5 : 1,
+        cursor: isPastDay ? "default" : "pointer",
       }}
-        onClick={() => { if(subMode==="split"&&isHalf) return; onCellClick(k.id,date,time); }}
-        title={booking ? `${booking.player} — options` : slotOpen ? `Ouvert ${cellIs30?"30'":"1h"}` : "Fermé"}>
+        onClick={() => !isPastDay && handleCellClick(k.id, time)}
+        title={booking ? `${booking.player}` : slotOpen ? "Ouvert 30'" : "Fermé — cliquer pour ouvrir"}>
         {indicator}
       </div>
     );
   }
 
   return (
-    <div style={{...css.calendarWrap, margin:"0 20px", overflowX:"auto"}}>
-      <div style={{display:"flex", minWidth:500}}>
+    <div style={{...css.calendarWrap, margin:"0 20px", overflowX:"auto", position:"relative"}}>
+      {/* Popup choix durée */}
+      {durationPicker && (
+        <div style={{
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
+          display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000,
+        }} onClick={()=>setDurationPicker(null)}>
+          <div style={{
+            background:"#fff", borderRadius:16, padding:24, minWidth:260,
+            boxShadow:"0 8px 32px rgba(0,0,0,0.3)",
+          }} onClick={e=>e.stopPropagation()}>
+            <div style={{fontWeight:800, fontSize:16, marginBottom:6, color:T.navy}}>
+              Ouvrir le créneau {durationPicker.time}
+            </div>
+            <div style={{fontSize:13, color:T.textDim, marginBottom:20}}>
+              Quelle durée souhaitez-vous ouvrir ?
+            </div>
+            <div style={{display:"flex", gap:12}}>
+              <button style={{
+                flex:1, padding:"14px 0", background:"#f0f4ff",
+                border:`2px solid ${T.navy}`, borderRadius:12,
+                fontWeight:800, fontSize:15, color:T.navy, cursor:"pointer",
+              }} onClick={()=>openWithDuration(30)}>
+                30 min
+              </button>
+              <button style={{
+                flex:1, padding:"14px 0", background:T.navy,
+                border:`2px solid ${T.navy}`, borderRadius:12,
+                fontWeight:800, fontSize:15, color:"#fff", cursor:"pointer",
+              }} onClick={()=>openWithDuration(60)}>
+                1 heure
+              </button>
+            </div>
+            <button style={{
+              width:"100%", marginTop:12, padding:"10px 0",
+              background:"transparent", border:"none",
+              color:T.textDim, cursor:"pointer", fontSize:13,
+            }} onClick={()=>setDurationPicker(null)}>
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
-        {/* Fixed time axis — one H1 row per base slot */}
+      <div style={{display:"flex", minWidth:500}}>
+        {/* Axe temps — créneaux de 30' */}
         <div style={{width:64, flexShrink:0, display:"flex", flexDirection:"column"}}>
           <div style={{height:HEADER, background:T.surface3, borderBottom:`2px solid ${T.border}`, borderRight:`1px solid ${T.border}`}} />
-          {baseTimes.map(time => (
+          {displayTimes.map(time => (
             <div key={`axis-${time}`} style={{
-              height: H1, flexShrink:0,
-              background: T.surface2,
+              height: H30, flexShrink:0,
+              background: time.endsWith(":00") ? T.surface2 : T.surface3,
               borderBottom:`1px solid ${T.border2}`,
               borderRight:`1px solid ${T.border}`,
               display:"flex", alignItems:"center", justifyContent:"flex-end", padding:"0 8px",
             }}>
               <div style={{textAlign:"right"}}>
-                <div style={{fontSize:11, fontWeight:600, color:T.textMid}}>{time}</div>
-                <div style={{fontSize:9, color:T.textDim}}>1h</div>
+                <div style={{fontSize: time.endsWith(":00") ? 11 : 9, fontWeight: time.endsWith(":00") ? 700 : 400, color: time.endsWith(":00") ? T.textMid : T.textDim}}>{time}</div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* One independent flex column per kiné */}
+        {/* Une colonne par kiné */}
         {kines.map(k => (
           <div key={k.id} style={{flex:1, minWidth:90, display:"flex", flexDirection:"column"}}>
-            {/* Header */}
             <div style={{
               height: HEADER, flexShrink:0,
               background: k.color+"18",
@@ -1495,21 +1560,7 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
               <div style={{...css.practAvatar, background:k.color, width:30, height:30, fontSize:11, flexShrink:0}}>{k.initials}</div>
               <span style={{fontSize:13, fontWeight:700, color:k.color, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{k.name}</span>
             </div>
-
-            {/* Per base slot: render 1 or 2 cells */}
-            {baseTimes.map(baseTime => {
-              const splitForThis = isSplit(k.id, date, baseTime);
-              if (splitForThis) {
-                const halfTime = `${baseTime.split(":")[0].padStart(2,"0")}:30`;
-                return (
-                  <div key={`${k.id}-${baseTime}-split`} style={{display:"flex", flexDirection:"column"}}>
-                    {renderCell(k, baseTime)}
-                    {renderCell(k, halfTime)}
-                  </div>
-                );
-              }
-              return renderCell(k, baseTime);
-            })}
+            {displayTimes.map(time => renderCell(k, time))}
           </div>
         ))}
       </div>
