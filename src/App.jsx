@@ -1891,6 +1891,13 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
   // La grille staff : axe temps fixe H30, mais chaque colonne kiné
   // peut avoir des cellules fusionnées H30*2
   // Pour l'axe temps, on affiche toujours H30 par créneau
+  // Bandeaux planning du jour
+  const staffDayBlocks = (scheduleBlocks||[]).filter(b => b.date === date)
+    .sort((a,b) => a.time_start.localeCompare(b.time_start));
+  function getStaffBlock(time) {
+    return staffDayBlocks.find(b => time >= b.time_start.slice(0,5) && time < b.time_end.slice(0,5));
+  }
+
   function renderCell(k, time, h) {
     const { booking, slotOpen, rec } = getSlotStatus(k, time);
     const isTarget = staffTarget?.practId===k.id && staffTarget?.date===date && staffTarget?.time===time;
