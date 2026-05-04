@@ -1186,6 +1186,16 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     </div>
   );
 
+  // Bandeaux planning pour ce jour
+  const dayBlocks = (scheduleBlocks||[]).filter(b => b.date === d)
+    .sort((a,b) => a.time_start.localeCompare(b.time_start));
+
+  // Vérifie si un time est couvert par un bandeau
+  function getBlockForTime(time) {
+    return dayBlocks.find(b => time >= b.time_start.slice(0,5) && time < b.time_end.slice(0,5));
+  }
+
+
   // Colonne kiné : CSS grid avec positionnement par row
   function KineColumn({ p }) {
     const slots = getSlotsForContext(p.id, d).filter(t => baseTimes.includes(t));
@@ -1281,15 +1291,6 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         ))}
       </div>
     );
-  }
-
-  // Bandeaux planning pour ce jour
-  const dayBlocks = (scheduleBlocks||[]).filter(b => b.date === d)
-    .sort((a,b) => a.time_start.localeCompare(b.time_start));
-
-  // Vérifie si un time est couvert par un bandeau
-  function getBlockForTime(time) {
-    return dayBlocks.find(b => time >= b.time_start.slice(0,5) && time < b.time_end.slice(0,5));
   }
 
   const header = (
