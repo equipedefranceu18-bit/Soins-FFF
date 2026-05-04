@@ -1473,7 +1473,6 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
     { key:"recurring", label:"↺ Récurrence",     color:"#ffd166", hint:"Cliquez pour activer/désactiver la répétition hebdomadaire." },
     { key:"split",     label:"✂️ Diviser 2×30'", color:"#fd79a8", hint:"Cliquez sur un créneau 1h pour le couper en deux créneaux de 30 min." },
     { key:"addPlayer", label:"➕ Assigner",       color:"#a29bfe", hint:"Cliquez sur un créneau libre pour y assigner un joueur." },
-    { key:"planning",  label:"🏃 Planning",       color:"#20c997", hint:"Ajoutez des bandeaux entraînement/repas visibles par les joueurs." },
     { key:"straps",    label:"🩹 Straps",          color:"#ff7043", hint:"Cliquez sur un créneau pour ouvrir/fermer un strap de 30 min. Couleur orange unique." },
     { key:"history",   label:"🗂 Historique",     color:"#8b949e", hint:"Consultez tous les soins passés." },
   ];
@@ -1554,6 +1553,11 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
             {label}
           </button>
         ))}
+        <button style={{...css.staffActBtn,
+          ...(dvSubMode==="planning" ? {background:"#20c99722",border:"1px solid #20c997",color:"#20c997"} : {background:"#f0fff8", border:"1px solid #20c99744", color:"#20c997"})}}
+          onClick={()=>{ setDvSubMode(dvSubMode==="planning"?"slots":"planning"); setStaffTarget(null); }}>
+          🏃 Planning
+        </button>
         <button style={{...css.staffActBtn, background:"#f0f4ff", border:`1px solid ${T.navy}44`, color:T.navy}}
           onClick={()=>setShowStats(true)}>
           📊 Stats
