@@ -205,6 +205,7 @@ export default function App() {
   async function toggleStrap(date, time) {
     const s = strapSlots[`${date}|${time}`];
     if (s) {
+      // Supprimer le strap (même si réservé par un joueur)
       await supabase.from("bookings").delete().match({ pract_id: STRAP_ID, date, time });
     } else {
       await supabase.from("bookings").upsert({ pract_id: STRAP_ID, date, time, player: "", locked: false, note: "", duration: 30 });
@@ -1757,20 +1758,23 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
           borderLeft: `3px solid ${STRAP_COLOR}`,
           background: isBooked ? STRAP_COLOR+"44" : STRAP_COLOR+"22",
           display:"flex", alignItems:"center", justifyContent:"center",
-          cursor: subMode === "straps" && !isPastDay ? "pointer" : "default",
+          cursor: !isPastDay && (subMode === "straps" || isBooked) ? "pointer" : "default",
           opacity: slotPast ? 0.45 : 1,
           overflow:"hidden",
         }}
-          onClick={() => subMode === "straps" && !isPastDay && onCellClick(k.id, date, time)}>
+          onClick={() => !isPastDay && subMode === "straps" && !isBooked && onCellClick(k.id, date, time)}>
           {isBooked ? (
             <div style={{width:"100%", padding:"0 4px", overflow:"hidden"}}>
               <div style={{display:"flex", alignItems:"center", gap:2}}>
                 <span style={{fontSize:9}}>🩹</span>
                 <span style={{fontSize:10, fontWeight:800, color:STRAP_COLOR,
                   overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
-                  filter:"brightness(0.65)"}}>
+                  filter:"brightness(0.65)", flex:1}}>
                   {strapPlayer}
                 </span>
+                {!isPastDay && (
+                  <button style={css.deleteBtn} onClick={e=>{e.stopPropagation();onCellClick(k.id,date,time);}}>✕</button>
+                )}
               </div>
               <div style={{fontSize:7, color:STRAP_COLOR, fontWeight:600}}>Strap 30'</div>
             </div>
