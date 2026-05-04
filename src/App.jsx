@@ -349,11 +349,11 @@ export default function App() {
     await loadAll();
   }
 
-  function unbook(practId, date, time) {
-    // Keep past bookings in history — only allow delete for future/today
+  async function unbook(practId, date, time) {
     const date_ = slotKey(practId, date, time).split("|")[1];
-    if (isPast(date_)) return; // archived, can't delete
-    setBookings(b => { const n={...b}; delete n[slotKey(practId,date,time)]; return n; });
+    if (isPast(date_)) return;
+    await supabase.from("bookings").delete().match({pract_id:practId, date, time});
+    await loadAll();
   }
 
   async function addNote(practId, date, time, note) {
@@ -384,8 +384,8 @@ export default function App() {
     const is30 = selectedTime.endsWith(":30") || isSplit(selectedPract, selectedDate, selectedTime);
     await supabase.from("bookings").upsert({pract_id:selectedPract, date:selectedDate, time:selectedTime, player:playerName.trim(), locked:false, note:"", duration:is30?30:60});
     await loadAll();
-    const p = PRACTITIONERS.find(x => x.id === selectedPract) ||
-    (selectedPract?.startsWith(STRAP_ID+'_') ? {id:selectedPract,name:'Strap',color:STRAP_COLOR,initials:'🩹'} : null);
+    const p = PRACTITIONERS.find(x => x.id === selectedPract);
+    if (!p) return; // sécurité
     setConfirmation({ pract: p, date: selectedDate, time: selectedTime, player: playerName, duration: is30 ? 30 : 60 });
     setSelectedPract(null); setSelectedDate(null); setSelectedTime(null);
   }
