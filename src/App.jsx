@@ -1737,6 +1737,31 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
     };
 
     const slotPast = isSlotPast(time);
+    // Strap uniquement sur les kinés (pas JY)
+    const isKine = k.role === "kiné";
+    const hasStrap = isKine && strapSlots && strapSlots[`${date}|${time}`];
+
+    // Cellule strap : fond orange uniforme, bloque l'ouverture classique
+    if (hasStrap && !booking) {
+      return (
+        <div key={`${k.id}-${time}`} style={{
+          height: h, flexShrink: 0,
+          borderBottom: isHour ? `2px solid ${STRAP_COLOR}55` : `1px solid ${STRAP_COLOR}33`,
+          borderRight: `1px solid ${T.border}`,
+          borderLeft: `3px solid ${STRAP_COLOR}`,
+          background: STRAP_COLOR+"22",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          cursor: subMode === "straps" && !isPastDay ? "pointer" : "default",
+          opacity: slotPast ? 0.45 : 1,
+        }}
+          onClick={() => subMode === "straps" && !isPastDay && onCellClick(k.id, date, time)}>
+          <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:1}}>
+            <span style={{fontSize:11}}>🩹</span>
+            <span style={{fontSize:7, fontWeight:800, color:STRAP_COLOR}}>30'</span>
+          </div>
+        </div>
+      );
+    }
 
     let bg = isHour ? T.surface : T.surface3+"88";
     let bl = "3px solid transparent";
@@ -1799,15 +1824,11 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
         background: bg, borderLeft: bl,
         display:"flex", alignItems:"center", justifyContent:"center",
         cursor: isPastDay ? "default" : "pointer",
-        position: "relative",
       }}
         onClick={() => !isPastDay && handleCellClick(k.id, time)}
         title={booking ? `${booking.player}` : slotOpen ? `Ouvert ${getSlotDuration(k.id,date,time)===60?"1h":"30'"}` : "Fermé — cliquer pour ouvrir"}>
         {indicator}
-        {strapSlots && strapSlots[`${date}|${time}`] && (
-          <div style={{position:"absolute",top:2,right:2,background:STRAP_COLOR,color:"#fff",
-            borderRadius:4,fontSize:8,fontWeight:800,padding:"1px 5px",lineHeight:1.4,pointerEvents:"none"}}>🩹</div>
-        )}
+
       </div>
     );
   }
