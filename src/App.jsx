@@ -225,7 +225,10 @@ export default function App() {
     const key = `${practId}|${date}|${time}`;
     const s = strapSlots[key];
     if (!s || s.player) return;
-    await supabase.from("bookings").upsert({ pract_id: practId, date, time, player, locked: false, note: "", duration: 30 });
+    // La ligne existe déjà (créée par toggleStrap) — on UPDATE juste le player
+    await supabase.from("bookings")
+      .update({ player, locked: false })
+      .eq("pract_id", practId).eq("date", date).eq("time", time);
     await loadAll();
   }
 
