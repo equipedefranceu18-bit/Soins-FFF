@@ -1984,20 +1984,21 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
       );
     }
 
-    let bg = staffBlock ? staffBlock.color+"18" : isHour ? T.surface : T.surface3+"88";
+    let bg = staffBlock ? staffBlock.color+"35" : isHour ? T.surface : T.surface3+"88";
     let bl = "3px solid transparent";
     let indicator = null;
-    if (staffBlock && !booking && isHour) {
+    if (staffBlock && !booking) {
       indicator = (
         <div style={{
           position:"absolute", left:0, right:0, top:0, bottom:0,
           display:"flex", alignItems:"center", justifyContent:"center",
           pointerEvents:"none",
         }}>
-          <span style={{fontSize:9, fontWeight:800, color:staffBlock.color,
-            background:staffBlock.color+"22", borderRadius:4, padding:"1px 5px",
-            border:`1px solid ${staffBlock.color}44`,
-          }}>{staffBlock.label}</span>
+          {isHour && <span style={{
+            fontSize:10, fontWeight:800, color:"#fff",
+            background:staffBlock.color+"dd", borderRadius:4, padding:"2px 7px",
+            boxShadow:`0 1px 4px ${staffBlock.color}55`,
+          }}>{staffBlock.label}</span>}
         </div>
       );
     }
@@ -2017,7 +2018,7 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
     }
 
     if (booking) {
-      bg = k.color+"44"; bl = `3px solid ${k.color}`;
+      bg = k.color+"66"; bl = `3px solid ${k.color}`;
       indicator = (
         <div style={{width:"100%", overflow:"hidden", padding:"0 4px"}}>
           <div style={{display:"flex", alignItems:"center", gap:2}}>
