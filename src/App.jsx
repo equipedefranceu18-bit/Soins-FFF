@@ -1667,6 +1667,7 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
             toggleOpen={toggleOpen}
             strapSlots={strapSlots}
             toggleStrap={toggleStrap}
+            scheduleBlocks={scheduleBlocks}
             onCellClick={(practId, date, time, duration) => {
               if (dvSubMode === "straps") {
                 const p = practitioners.find(x => x.id === practId);
@@ -1812,7 +1813,7 @@ function PlanningEditor({ date, scheduleBlocks, addScheduleBlock, deleteSchedule
 // The time axis shows base 1h slots. Split kinés show 2×30' within their H1 space.
 // Other kinés keep H1 — no forced split bleeding across columns.
 function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpen, isRecurring,
-  getSlotsForContext, isSplit, onCellClick, unbook, toggleOpen, getSlotDuration, strapSlots, toggleStrap }) {
+  getSlotsForContext, isSplit, onCellClick, unbook, toggleOpen, getSlotDuration, strapSlots, toggleStrap, scheduleBlocks }) {
 
   const isPastDay = isPast(date);
   const H30 = 28, HEADER = 48;
@@ -1932,6 +1933,9 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
     };
 
     const slotPast = isSlotPast(time);
+    // Bandeau planning
+    const staffBlock = getStaffBlock(time);
+
     // Strap : chaque kiné a sa propre place strap (pas JY)
     const isKine = k.role === "kiné";
     // Clé strap par kiné : "kineId|date|time"
@@ -1980,9 +1984,23 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
       );
     }
 
-    let bg = isHour ? T.surface : T.surface3+"88";
+    let bg = staffBlock ? staffBlock.color+"18" : isHour ? T.surface : T.surface3+"88";
     let bl = "3px solid transparent";
     let indicator = null;
+    if (staffBlock && !booking && isHour) {
+      indicator = (
+        <div style={{
+          position:"absolute", left:0, right:0, top:0, bottom:0,
+          display:"flex", alignItems:"center", justifyContent:"center",
+          pointerEvents:"none",
+        }}>
+          <span style={{fontSize:9, fontWeight:800, color:staffBlock.color,
+            background:staffBlock.color+"22", borderRadius:4, padding:"1px 5px",
+            border:`1px solid ${staffBlock.color}44`,
+          }}>{staffBlock.label}</span>
+        </div>
+      );
+    }
 
     // Créneau passé sans réservation → grisé non cliquable
     if (slotPast && !booking) {
