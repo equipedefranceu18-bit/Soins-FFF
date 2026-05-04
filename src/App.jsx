@@ -103,6 +103,7 @@ export default function App() {
   const [bookings,   setBookings]   = useState({});
   const [splitSlots, setSplitSlots] = useState({});
   const [strapSlots, setStrapSlots] = useState({}); // { "date|time": true }
+  const [scheduleBlocks, setScheduleBlocks] = useState([]); // [{id, date, time_start, time_end, label, color}]
   const [dbReady,    setDbReady]    = useState(false);
 
   const loadAll = useCallback(async () => {
@@ -126,7 +127,9 @@ export default function App() {
           bm[`${x.pract_id}|${x.date}|${x.time}`] = {player:x.player,locked:x.locked,note:x.note||"",duration:x.duration||60};
         }
       });
+      const sb = await supabase.from("schedule_blocks").select("*");
       setOpen(om); setClosed(cm); setRecurring(rm); setSplitSlots(sm); setBookings(bm); setStrapSlots(stm);
+      setScheduleBlocks(sb.data||[]);
       setDbReady(true);
     } catch(e) { console.warn("Supabase:",e.message); setDbReady(true); }
   }, []);
@@ -203,6 +206,16 @@ export default function App() {
     await loadAll();
   }
 
+
+  // ── Schedule blocks actions ────────────────────────────────────────────────
+  async function addScheduleBlock(date, time_start, time_end, label, color="#6c757d") {
+    await supabase.from("schedule_blocks").insert({ date, time_start, time_end, label, color });
+    await loadAll();
+  }
+  async function deleteScheduleBlock(id) {
+    await supabase.from("schedule_blocks").delete().eq("id", id);
+    await loadAll();
+  }
 
   // ── Strap actions ─────────────────────────────────────────────────────────
   // Strap par kiné : pract_id = "strap_k1", "strap_k2", etc.
@@ -446,6 +459,7 @@ export default function App() {
           confirmation={confirmation} setConfirmation={setConfirmation}
           myBookings={myBookings} cancelMyBooking={cancelMyBooking}
           strapSlots={strapSlots} bookStrap={bookStrap} isStrapAvailable={isStrapAvailable}
+          scheduleBlocks={scheduleBlocks}
           setView={setView}
         />
       )}
@@ -471,6 +485,7 @@ export default function App() {
           getSlotDuration={getSlotDuration}
           bookings={bookings}
           strapSlots={strapSlots} toggleStrap={toggleStrap}
+          scheduleBlocks={scheduleBlocks} addScheduleBlock={addScheduleBlock} deleteScheduleBlock={deleteScheduleBlock}
           PLAYERS={PLAYERS} setView={setView}
         />
       )}
@@ -632,7 +647,8 @@ function PlayerView({
   selectedDate, setSelectedDate, selectedTime, setSelectedTime,
   isAvailable, getBooking, isSlotOpen, getSlotsForContext, isSplit, confirmBooking, bookings, getSlotDuration,
   confirmation, setConfirmation, myBookings, cancelMyBooking,
-  strapSlots, bookStrap, isStrapAvailable, setView
+  strapSlots, bookStrap, isStrapAvailable,
+  scheduleBlocks, setView
 }) {
   // Tous les praticiens ensemble — kinés + ostéo dans la même vue
   const practitioners = [...kines, ...osteos];
@@ -853,6 +869,7 @@ function PlayerView({
           onSlotClick={handleSlotClick} bookings={bookings} playerName={playerName} getBooking={getBooking}
           getSlotDuration={getSlotDuration}
           strapSlots={strapSlots} bookStrap={bookStrap} isStrapAvailable={isStrapAvailable}
+          scheduleBlocks={scheduleBlocks}
         />
 
       {canConfirm && (
@@ -994,7 +1011,7 @@ function ByPractGrid({ practitioners, days, selectedPract, onPractSelect, select
 
 function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, selectedTime,
   isAvailable, isSlotOpen, getSlotsForContext, isSplit, onSlotClick, bookings, playerName, getBooking, getSlotDuration,
-  strapSlots, bookStrap, isStrapAvailable }) {
+  strapSlots, bookStrap, isStrapAvailable, scheduleBlocks }) {
 
   const ROW = 28; // hauteur d'une unité de 30 minutes en px
   const d = days.length === 1 ? fmtDate(days[0]) : null;
@@ -1152,16 +1169,22 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
       {baseTimes.map((time, i) => {
         const isHour = time.endsWith(":00");
         return (
-          <div key={time} style={{
-            gridRow: i+1,
-            background: isHour ? T.surface2 : T.surface3,
-            borderBottom: isHour ? `2px solid ${T.border}` : `1px solid ${T.border2}`,
-            display:"flex", alignItems:"center", justifyContent:"flex-end", padding:"0 8px",
-          }}>
-            <div style={{fontSize: isHour?11:9, fontWeight:isHour?700:400, color:isHour?T.textMid:T.textDim}}>
-              {time}
-            </div>
-          </div>
+          {(() => {
+            const block = getBlockForTime(time);
+            return (
+              <div key={time} style={{
+                gridRow: i+1,
+                background: block ? block.color+"18" : isHour ? T.surface2 : T.surface3,
+                borderBottom: isHour ? `2px solid ${block ? block.color+"44" : T.border}` : `1px solid ${T.border2}`,
+                borderLeft: block ? `3px solid ${block.color}` : "none",
+                display:"flex", alignItems:"center", justifyContent:"flex-end", padding:"0 8px",
+              }}>
+                <div style={{fontSize: isHour?11:9, fontWeight:isHour?700:400, color: block ? block.color : isHour?T.textMid:T.textDim}}>
+                  {time}
+                </div>
+              </div>
+            );
+          })()}
         );
       })}
     </div>
@@ -1198,15 +1221,27 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         borderRight:`1px solid ${T.border}`,
       }}>
         {/* Lignes de fond (séparateurs) */}
-        {baseTimes.map((time, i) => (
-          <div key={`bg-${time}`} style={{
-            gridRow: i+1,
-            gridColumn: 1,
-            borderBottom: time.endsWith(":00") ? `2px solid ${T.border}` : `1px solid ${T.border2}`,
-            background: time.endsWith(":00") ? T.surface : T.surface3+"88",
-            opacity: past ? 0.45 : 1,
-          }} />
-        ))}
+        {baseTimes.map((time, i) => {
+          const block = getBlockForTime(time);
+          return (
+            <div key={`bg-${time}`} style={{
+              gridRow: i+1,
+              gridColumn: 1,
+              borderBottom: time.endsWith(":00") ? `2px solid ${block ? block.color+"33" : T.border}` : `1px solid ${T.border2}`,
+              background: block ? block.color+"14" : time.endsWith(":00") ? T.surface : T.surface3+"88",
+              opacity: past ? 0.45 : 1,
+            }}>
+              {block && time.endsWith(":00") && (
+                <div style={{
+                  position:"absolute", left:0, right:0,
+                  fontSize:9, fontWeight:800, color:block.color,
+                  padding:"1px 4px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                  pointerEvents:"none",
+                }}>{block.label}</div>
+              )}
+            </div>
+          );
+        })}
         {/* Boutons de slots (kinés + straps) */}
         {allVisibleTimes.map(time => (
           <Btn key={time} p={p} time={time} />
@@ -1250,6 +1285,15 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         ))}
       </div>
     );
+  }
+
+  // Bandeaux planning pour ce jour
+  const dayBlocks = (scheduleBlocks||[]).filter(b => b.date === d)
+    .sort((a,b) => a.time_start.localeCompare(b.time_start));
+
+  // Vérifie si un time est couvert par un bandeau
+  function getBlockForTime(time) {
+    return dayBlocks.find(b => time >= b.time_start.slice(0,5) && time < b.time_end.slice(0,5));
   }
 
   const header = (
@@ -1402,7 +1446,8 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
   unbook, staffBookSlot, addNote, moveBooking, staffTarget, setStaffTarget,
   staffPlayerName, setStaffPlayerName,
   getSlotsForContext, isSplit, toggleSplit, BASE_SLOTS, isHalfSlot,
-  getPastBookings, getSlotDuration, bookings, strapSlots, toggleStrap, PLAYERS, setView }) {
+  getPastBookings, getSlotDuration, bookings, strapSlots, toggleStrap,
+  scheduleBlocks, addScheduleBlock, deleteScheduleBlock, PLAYERS, setView }) {
 
   const [dvSubMode, setDvSubMode] = useState("slots");
   const [showStats, setShowStats] = useState(false);
@@ -1428,6 +1473,7 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
     { key:"recurring", label:"↺ Récurrence",     color:"#ffd166", hint:"Cliquez pour activer/désactiver la répétition hebdomadaire." },
     { key:"split",     label:"✂️ Diviser 2×30'", color:"#fd79a8", hint:"Cliquez sur un créneau 1h pour le couper en deux créneaux de 30 min." },
     { key:"addPlayer", label:"➕ Assigner",       color:"#a29bfe", hint:"Cliquez sur un créneau libre pour y assigner un joueur." },
+    { key:"planning",  label:"🏃 Planning",       color:"#20c997", hint:"Ajoutez des bandeaux entraînement/repas visibles par les joueurs." },
     { key:"straps",    label:"🩹 Straps",          color:"#ff7043", hint:"Cliquez sur un créneau pour ouvrir/fermer un strap de 30 min. Couleur orange unique." },
     { key:"history",   label:"🗂 Historique",     color:"#8b949e", hint:"Consultez tous les soins passés." },
   ];
@@ -1567,8 +1613,18 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
         </div>
       )}
 
+      {/* ── PLANNING MODE ── */}
+      {dvSubMode === "planning" && (
+        <PlanningEditor
+          date={dvDate}
+          scheduleBlocks={scheduleBlocks}
+          addScheduleBlock={addScheduleBlock}
+          deleteScheduleBlock={deleteScheduleBlock}
+        />
+      )}
+
       {/* ── CALENDAR MODES ── */}
-      {dvSubMode !== "history" && (
+      {dvSubMode !== "history" && dvSubMode !== "planning" && (
         <>
           {/* Assign player panel */}
           {dvSubMode==="addPlayer" && staffTarget && (
@@ -1646,6 +1702,106 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
             <span style={{...css.legendBadge,color:STRAP_COLOR,border:`1px solid ${STRAP_COLOR}44`}}>🩹 Strap (30')</span>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ─── Planning Editor (staff) ─────────────────────────────────────────────────
+const BLOCK_PRESETS = [
+  { label: "🏃 Entraînement", color: "#2d6a4f" },
+  { label: "🍽 Repas",         color: "#e07b00" },
+  { label: "🛌 Récupération",  color: "#5b4fcf" },
+  { label: "🚌 Déplacement",   color: "#1565c0" },
+  { label: "📋 Réunion",       color: "#b00020" },
+];
+
+function PlanningEditor({ date, scheduleBlocks, addScheduleBlock, deleteScheduleBlock }) {
+  const [label, setLabel]       = useState(BLOCK_PRESETS[0].label);
+  const [color, setColor]       = useState(BLOCK_PRESETS[0].color);
+  const [customLabel, setCustomLabel] = useState("");
+  const [timeStart, setTimeStart] = useState("09:00");
+  const [timeEnd,   setTimeEnd]   = useState("10:00");
+  const [useCustom, setUseCustom] = useState(false);
+
+  const dayBlocks = scheduleBlocks
+    .filter(b => b.date === date)
+    .sort((a,b) => a.time_start.localeCompare(b.time_start));
+
+  const finalLabel = useCustom ? customLabel : label;
+  const finalColor = useCustom ? "#6c757d" : color;
+
+  function handlePreset(preset) {
+    setLabel(preset.label);
+    setColor(preset.color);
+    setUseCustom(false);
+  }
+
+  return (
+    <div style={{padding:"0 20px 24px"}}>
+      <div style={{background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:16, marginBottom:16, boxShadow:"0 2px 8px rgba(0,35,149,0.06)"}}>
+        <div style={{...css.label, marginBottom:10}}>Ajouter un bandeau</div>
+
+        {/* Presets */}
+        <div style={{display:"flex", flexWrap:"wrap", gap:8, marginBottom:12}}>
+          {BLOCK_PRESETS.map(p => (
+            <button key={p.label} onClick={()=>handlePreset(p)} style={{
+              padding:"6px 12px", borderRadius:20, fontSize:12, fontWeight:600, cursor:"pointer",
+              background: (!useCustom && label===p.label) ? p.color : p.color+"22",
+              border: `2px solid ${p.color}`,
+              color: (!useCustom && label===p.label) ? "#fff" : p.color,
+              transition:"all 0.15s",
+            }}>{p.label}</button>
+          ))}
+          <button onClick={()=>setUseCustom(true)} style={{
+            padding:"6px 12px", borderRadius:20, fontSize:12, fontWeight:600, cursor:"pointer",
+            background: useCustom ? T.navy : T.surface2,
+            border: `2px solid ${T.navy}`,
+            color: useCustom ? "#fff" : T.navy,
+          }}>✏️ Autre</button>
+        </div>
+
+        {useCustom && (
+          <input style={{...css.input, marginBottom:10}} placeholder="Ex: 🎯 Tactique..."
+            value={customLabel} onChange={e=>setCustomLabel(e.target.value)} />
+        )}
+
+        <div style={{display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap"}}>
+          <div style={{flex:1, minWidth:100}}>
+            <div style={{...css.label, marginBottom:4}}>De</div>
+            <input type="time" style={css.input} value={timeStart} onChange={e=>setTimeStart(e.target.value)} />
+          </div>
+          <div style={{flex:1, minWidth:100}}>
+            <div style={{...css.label, marginBottom:4}}>À</div>
+            <input type="time" style={css.input} value={timeEnd} onChange={e=>setTimeEnd(e.target.value)} />
+          </div>
+          <button style={{...css.btn, ...css.btnConfirm, height:44, flexShrink:0}}
+            onClick={()=>{
+              if (!finalLabel.trim() || timeStart >= timeEnd) return;
+              addScheduleBlock(date, timeStart, timeEnd, finalLabel.trim(), finalColor);
+            }}>
+            + Ajouter
+          </button>
+        </div>
+      </div>
+
+      {/* Liste des bandeaux du jour */}
+      {dayBlocks.length === 0 ? (
+        <div style={css.emptyHint}>Aucun bandeau ce jour.</div>
+      ) : (
+        <div style={{display:"flex", flexDirection:"column", gap:8}}>
+          {dayBlocks.map(b => (
+            <div key={b.id} style={{
+              display:"flex", alignItems:"center", gap:10,
+              background:b.color+"18", border:`2px solid ${b.color}55`,
+              borderLeft:`4px solid ${b.color}`, borderRadius:10, padding:"10px 14px",
+            }}>
+              <span style={{fontSize:14, fontWeight:800, color:b.color, flex:1}}>{b.label}</span>
+              <span style={{fontSize:12, color:T.textDim}}>{b.time_start.slice(0,5)} – {b.time_end.slice(0,5)}</span>
+              <button style={{...css.deleteBtn, fontSize:14}} onClick={()=>deleteScheduleBlock(b.id)}>✕</button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
