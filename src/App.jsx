@@ -1178,7 +1178,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         return (
           <div key={time} style={{
             gridRow: i+1,
-            background: block ? block.color+"18" : isHour ? T.surface2 : T.surface3,
+            background: block ? block.color+"35" : isHour ? T.surface2 : T.surface3,
             borderBottom: isHour ? `2px solid ${block ? block.color+"44" : T.border}` : `1px solid ${T.border2}`,
             borderLeft: block ? `3px solid ${block.color}` : "none",
             display:"flex", flexDirection:"column", alignItems:"flex-end", justifyContent:"center",
@@ -1236,10 +1236,23 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
               gridRow: i+1,
               gridColumn: 1,
               borderBottom: time.endsWith(":00") ? `2px solid ${block ? block.color+"33" : T.border}` : `1px solid ${T.border2}`,
-              background: block ? block.color+"18" : time.endsWith(":00") ? T.surface : T.surface3+"88",
+              background: block ? block.color+"35" : time.endsWith(":00") ? T.surface : T.surface3+"88",
               opacity: past ? 0.45 : 1,
               position:"relative",
             }}>
+              {block && time.endsWith(":00") && (
+                <div style={{
+                  position:"absolute", left:0, right:0, top:0, bottom:0,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  pointerEvents:"none", zIndex:0,
+                }}>
+                  <span style={{
+                    fontSize:9, fontWeight:800, color:"#fff",
+                    background:block.color+"cc", borderRadius:4, padding:"1px 6px",
+                    boxShadow:`0 1px 4px ${block.color}44`,
+                  }}>{block.label}</span>
+                </div>
+              )}
             </div>
           );
         })}
