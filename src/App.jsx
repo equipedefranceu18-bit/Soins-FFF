@@ -678,10 +678,10 @@ function PlayerView({
     if (pId && pId.startsWith(STRAP_ID + '_')) {
       const kineId = pId.replace(STRAP_ID + '_', '');
       if (!isStrapAvailable(kineId, date, time)) return;
-      if (selectedPract === STRAP_ID && selectedDate === date && selectedTime === time) {
+      if (selectedPract === pId && selectedDate === date && selectedTime === time) {
         setSelectedPract(null); setSelectedDate(null); setSelectedTime(null);
       } else {
-        setSelectedPract(STRAP_ID); setSelectedDate(date); setSelectedTime(time);
+        setSelectedPract(pId); setSelectedDate(date); setSelectedTime(time);
       }
       return;
     }
