@@ -1188,7 +1188,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
               {time}
             </div>
             {block && isHour && (
-              <div style={{fontSize:7, fontWeight:800, color:block.color, lineHeight:1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%"}}>
+              <div style={{fontSize:8, fontWeight:800, color:"#fff", lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%", background:block.color+"cc", borderRadius:3, padding:"1px 3px", marginTop:1}}>
                 {block.label}
               </div>
             )}
@@ -1240,19 +1240,6 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
               opacity: past ? 0.45 : 1,
               position:"relative",
             }}>
-              {block && time.endsWith(":00") && (
-                <div style={{
-                  position:"absolute", left:0, right:0, top:0, bottom:0,
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  pointerEvents:"none", zIndex:0,
-                }}>
-                  <span style={{
-                    fontSize:9, fontWeight:800, color:"#fff",
-                    background:block.color+"cc", borderRadius:4, padding:"1px 6px",
-                    boxShadow:`0 1px 4px ${block.color}44`,
-                  }}>{block.label}</span>
-                </div>
-              )}
             </div>
           );
         })}
