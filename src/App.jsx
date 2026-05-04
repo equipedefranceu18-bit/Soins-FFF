@@ -1761,7 +1761,7 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
     // Strap : chaque kiné a sa propre place strap (pas JY)
     const isKine = k.role === "kiné";
     // Clé strap par kiné : "kineId|date|time"
-    const strapKey = `${k.id}|${date}|${time}`;
+    const strapKey = `${STRAP_ID}_${k.id}|${date}|${time}`;
     const hasStrap = isKine && strapSlots && strapSlots[strapKey];
 
     if (hasStrap) {
