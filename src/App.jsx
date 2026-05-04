@@ -1742,12 +1742,27 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
     };
 
     const slotPast = isSlotPast(time);
-    // Strap uniquement sur les kinés (pas JY)
+    // Strap uniquement sur les kinés (pas JY), et affiché sur la 1ère colonne kiné seulement
     const isKine = k.role === "kiné";
+    const isFirstKine = isKine && kines[0]?.id === k.id;
     const hasStrap = isKine && strapSlots && strapSlots[`${date}|${time}`];
 
-    // Cellule strap : fond orange uniforme, bloque l'ouverture classique
-    if (hasStrap) {
+    // Sur les colonnes kinés non-première : bloquer l'ouverture si strap actif
+    if (hasStrap && !isFirstKine) {
+      return (
+        <div key={`${k.id}-${time}`} style={{
+          height: h, flexShrink: 0,
+          borderBottom: isHour ? `2px solid ${T.border}` : `1px solid ${T.border2}`,
+          borderRight: `1px solid ${T.border}`,
+          background: STRAP_COLOR+"08",
+          cursor: "default",
+          opacity: slotPast ? 0.45 : 1,
+        }} />
+      );
+    }
+
+    // Cellule strap sur la 1ère colonne kiné : fond orange, affiche joueur si réservé
+    if (hasStrap && isFirstKine) {
       const strapData = strapSlots[`${date}|${time}`];
       const strapPlayer = strapData?.player || "";
       const isBooked = !!strapPlayer;
@@ -1759,7 +1774,7 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
           borderLeft: `3px solid ${STRAP_COLOR}`,
           background: isBooked ? STRAP_COLOR+"44" : STRAP_COLOR+"22",
           display:"flex", alignItems:"center", justifyContent:"center",
-          cursor: !isPastDay && (subMode === "straps" || isBooked) ? "pointer" : "default",
+          cursor: !isPastDay && subMode === "straps" ? "pointer" : "default",
           opacity: slotPast ? 0.45 : 1,
           overflow:"hidden",
         }}
