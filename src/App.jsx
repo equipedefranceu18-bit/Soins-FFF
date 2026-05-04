@@ -1553,7 +1553,12 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
             {label}
           </button>
         ))}
-        <button style={{...css.staffActBtn, background: dvSubMode==="planning" ? "#20c997" : "#e0fff5", border:"2px solid #20c997", color: dvSubMode==="planning" ? "#fff" : "#20c997", fontWeight:700}}
+        <button style={{
+          background: dvSubMode==="planning" ? "#20c997" : "#e0fff5",
+          border:"3px solid #20c997", color: dvSubMode==="planning" ? "#fff" : "#157a6e",
+          fontWeight:800, fontSize:13, padding:"8px 14px", borderRadius:10,
+          cursor:"pointer", whiteSpace:"nowrap",
+        }}
           onClick={()=>{ setDvSubMode(dvSubMode==="planning"?"slots":"planning"); setStaffTarget(null); }}>
           🏃 Planning
         </button>
