@@ -121,7 +121,7 @@ export default function App() {
       const bm={}; const stm={};
       (b.data||[]).forEach(x => {
         if (x.pract_id && x.pract_id.startsWith(STRAP_ID+"_")) {
-          stm[`${x.pract_id}|${x.date}|${x.time}`] = { player: x.player||"", locked: x.locked };
+          stm[`${x.pract_id}|${x.date}|${x.time}`] = { player: x.player || "", locked: x.locked };
         } else {
           bm[`${x.pract_id}|${x.date}|${x.time}`] = {player:x.player,locked:x.locked,note:x.note||"",duration:x.duration||60};
         }
@@ -224,18 +224,20 @@ export default function App() {
     const practId = strapPractId(kineId);
     const key = `${practId}|${date}|${time}`;
     const s = strapSlots[key];
-    if (!s || s.player) return;
-    // La ligne existe déjà (créée par toggleStrap) — on UPDATE juste le player
-    await supabase.from("bookings")
+    console.log("bookStrap", practId, date, time, player, "s=", s);
+    if (!s) { console.log("bookStrap: no slot found"); return; }
+    if (s.player && s.player !== "") { console.log("bookStrap: already booked", s.player); return; }
+    const res = await supabase.from("bookings")
       .update({ player, locked: false })
       .eq("pract_id", practId).eq("date", date).eq("time", time);
+    console.log("bookStrap result:", res);
     await loadAll();
   }
 
   function isStrapAvailable(kineId, date, time) {
     const key = `${strapPractId(kineId)}|${date}|${time}`;
     const s = strapSlots[key];
-    if (!s || s.player) return false;
+    if (!s || (s.player && s.player !== "")) return false;
     return isWithinBookingWindow(date, time);
   }
 
