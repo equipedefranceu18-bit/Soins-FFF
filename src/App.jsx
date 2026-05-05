@@ -1184,7 +1184,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
         return (
           <div key={time} style={{
             gridRow: i+1,
-            background: block ? block.color+"35" : isHour ? T.surface2 : T.surface3,
+            background: block ? block.color+"25" : isHour ? T.surface2 : T.surface3,
             borderBottom: isHour ? `2px solid ${block ? block.color+"44" : T.border}` : `1px solid ${T.border2}`,
             borderLeft: block ? `3px solid ${block.color}` : "none",
             display:"flex", flexDirection:"column", alignItems:"flex-end", justifyContent:"center",
@@ -1193,11 +1193,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
             <div style={{fontSize: isHour?11:9, fontWeight:isHour?700:400, color: block ? block.color : isHour?T.textMid:T.textDim, lineHeight:1.2}}>
               {time}
             </div>
-            {block && isHour && (
-              <div style={{fontSize:8, fontWeight:800, color:"#fff", lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%", background:block.color+"cc", borderRadius:3, padding:"1px 3px", marginTop:1}}>
-                {block.label}
-              </div>
-            )}
+
           </div>
         );
       })}
@@ -1242,7 +1238,7 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
               gridRow: i+1,
               gridColumn: 1,
               borderBottom: time.endsWith(":00") ? `2px solid ${block ? block.color+"33" : T.border}` : `1px solid ${T.border2}`,
-              background: block ? block.color+"35" : time.endsWith(":00") ? T.surface : T.surface3+"88",
+              background: time.endsWith(":00") ? T.surface : T.surface3+"88",
               opacity: past ? 0.45 : 1,
               position:"relative",
             }}>
@@ -1313,13 +1309,42 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     <div style={css.gridSection}>
       <div style={{...css.calendarWrap, overflow:"hidden"}}>
         {header}
-        <div style={{display:"flex"}}>
+        <div style={{display:"flex", position:"relative"}}>
           {timeAxis}
           <div style={{flex:4, display:"flex", borderRight:SEP}}>
             {kines.map(p => <KineColumn key={p.id} p={p} />)}
           </div>
           <div style={{flex:1, display:"flex"}}>
             {osteos.map(p => <OsteoColumn key={p.id} p={p} />)}
+          </div>
+          {/* Bandeaux planning overlay */}
+          <div style={{position:"absolute", top:0, bottom:0, left:64, right:0, pointerEvents:"none", zIndex:2}}>
+            {dayBlocks.map(block => {
+              const startIdx = baseTimes.indexOf(block.time_start.slice(0,5));
+              const endIdx = baseTimes.indexOf(block.time_end.slice(0,5));
+              if (startIdx < 0) return null;
+              const ROW_H = ROW;
+              const top = startIdx * ROW_H;
+              const height = endIdx >= 0 ? (endIdx - startIdx) * ROW_H : ROW_H;
+              return (
+                <div key={block.id} style={{
+                  position:"absolute", left:0, right:0,
+                  top, height,
+                  background: block.color+"33",
+                  borderTop: `3px solid ${block.color}`,
+                  borderBottom: `2px solid ${block.color}55`,
+                  display:"flex", alignItems:"center", paddingLeft:12,
+                  pointerEvents:"none",
+                }}>
+                  <span style={{
+                    fontSize:12, fontWeight:800, color:block.color,
+                    background: block.color+"22", borderRadius:6,
+                    padding:"3px 10px", border:`1px solid ${block.color}55`,
+                    boxShadow:`0 1px 4px ${block.color}33`,
+                  }}>{block.label}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1991,24 +2016,10 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
       );
     }
 
-    let bg = staffBlock ? staffBlock.color+"35" : isHour ? T.surface : T.surface3+"88";
+    let bg = isHour ? T.surface : T.surface3+"88";
     let bl = "3px solid transparent";
     let indicator = null;
-    if (staffBlock && !booking) {
-      indicator = (
-        <div style={{
-          position:"absolute", left:0, right:0, top:0, bottom:0,
-          display:"flex", alignItems:"center", justifyContent:"center",
-          pointerEvents:"none",
-        }}>
-          {isHour && <span style={{
-            fontSize:10, fontWeight:800, color:"#fff",
-            background:staffBlock.color+"dd", borderRadius:4, padding:"2px 7px",
-            boxShadow:`0 1px 4px ${staffBlock.color}55`,
-          }}>{staffBlock.label}</span>}
-        </div>
-      );
-    }
+
 
     // Créneau passé sans réservation → grisé non cliquable
     if (slotPast && !booking) {
@@ -2152,6 +2163,33 @@ function MultiKineDay({ kines, date, subMode, staffTarget, getBooking, isSlotOpe
             )}
           </div>
         ))}
+        {/* Planning overlay pleine largeur */}
+        {(scheduleBlocks||[]).filter(b => b.date === date).map(block => {
+          const blockSlots = slots.filter(t => t >= block.time_start.slice(0,5) && t < block.time_end.slice(0,5));
+          if (blockSlots.length === 0) return null;
+          const firstIdx = slots.indexOf(blockSlots[0]);
+          const lastIdx = slots.indexOf(blockSlots[blockSlots.length-1]);
+          const top = HEADER + firstIdx * ROW;
+          const height = (lastIdx - firstIdx + 1) * ROW;
+          return (
+            <div key={block.id} style={{
+              position:"absolute",
+              left: 64, right: 0,
+              top, height,
+              background: block.color+"28",
+              borderTop: `3px solid ${block.color}88`,
+              borderBottom: `2px solid ${block.color}44`,
+              display:"flex", alignItems:"center", paddingLeft:16,
+              pointerEvents:"none", zIndex:3,
+            }}>
+              <span style={{
+                fontSize:12, fontWeight:800, color:"#fff",
+                background: block.color+"dd", borderRadius:6,
+                padding:"3px 12px", boxShadow:`0 1px 6px ${block.color}55`,
+              }}>{block.label}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
