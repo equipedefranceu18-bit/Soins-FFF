@@ -15,11 +15,14 @@ const PRACTITIONERS = [
 ];
 
 const PLAYERS = [
-  "A. Dupont","B. Girard","C. Petit","D. Leroy","E. Moreau",
-  "F. Simon","G. Michel","H. Lefebvre","I. Lefevre","J. Garcia",
-  "K. David","L. Bertrand","M. Roux","N. Vincent","O. Fournier",
-  "P. Morel","Q. Girard","R. Andre","S. Lecomte","T. Dupuis",
-  "U. Mercier","V. Blanc","W. Guerin","X. Boyer","Y. Gauthier",
+  // Gardiens
+  "Mike","Brice","Robin",
+  // Défenseurs
+  "Lucas D.","Malo","Lucas H.","Théo","Ibou","Jules","Maxence","William","Dayot",
+  // Milieux
+  "N'Golo","Manu","Adrien","Aurélien","Warren",
+  // Attaquants
+  "Maghnes","Bradley","Rayan","Ousmane","Désiré","Jean-Philippe","Kylian","Michael","Marcus",
 ];
 
 const STAFF_PASSWORD = "staff2024";
