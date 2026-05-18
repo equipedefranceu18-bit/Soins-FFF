@@ -18,7 +18,7 @@ const PLAYERS = [
   // Gardiens
   "Mike","Brice","Robin",
   // Défenseurs
-  "Lucas D.","Malo","Lucas H.","Théo","Ibou","Jules","Maxence","William","Dayot",
+  "Lucas D.","Malo","Lucas H.","Théo","Ibrahima","Jules","Maxence","William","Dayot",
   // Milieux
   "N'Golo","Manu","Adrien","Aurélien","Warren",
   // Attaquants
@@ -1076,11 +1076,10 @@ function BySlotGrid({ practitioners, kines, days, selectedPract, selectedDate, s
     .map(k => k.split("|")[2]))] : [];
   // Toutes les plages 30' de 09:00 à 21:30 + straps
   const allHalfHours = [];
-  for (let h = 9; h <= 21; h++) {
+  for (let h = 9; h <= 23; h++) {
     allHalfHours.push(`${String(h).padStart(2,"0")}:00`);
-    allHalfHours.push(`${String(h).padStart(2,"0")}:30`);
+    if (h < 24) allHalfHours.push(`${String(h).padStart(2,"0")}:30`);
   }
-  allHalfHours.push("22:00");
   const baseTimes = [...new Set([...allHalfHours, ...strapTimesForDay])].sort();
 
   if (baseTimes.length === 0) {
