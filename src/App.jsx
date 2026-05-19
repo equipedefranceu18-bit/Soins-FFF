@@ -16,7 +16,7 @@ const PRACTITIONERS = [
 
 const PLAYERS = [
   // Gardiens
-  "Mike","Brice","Robin",
+  "Mike","Robin","Brice",
   // Défenseurs
   "Lucas D.","Malo","Lucas H.","Théo","Ibrahima","Jules","Maxence","William","Dayot",
   // Milieux
@@ -247,7 +247,8 @@ export default function App() {
     if (s) {
       await supabase.from("bookings").delete().match({ pract_id: practId, date, time });
     } else {
-      await supabase.from("bookings").upsert({ pract_id: practId, date, time, player: "", locked: false, note: "", duration: 30 }, {onConflict:"pract_id,date,time"});
+      await supabase.from("bookings").delete().match({pract_id:practId, date, time}).eq("cancelled",false);
+      await supabase.from("bookings").insert({ pract_id: practId, date, time, player: "", locked: false, note: "", duration: 30 });
     }
     await loadAll();
   }
@@ -1537,7 +1538,7 @@ function StaffView({ loadAll, practitioners, days, dayOffset, setDayOffset, staf
   const subModes = [
     { key:"slots",     label:"📅 Ouvrir/Fermer", color:"#00d4aa", hint:"Cliquez pour ouvrir ou fermer un créneau (ponctuel)." },
     { key:"recurring", label:"↺ Récurrence",     color:"#ffd166", hint:"Cliquez pour activer/désactiver la répétition hebdomadaire." },
-    { key:"split",     label:"✂️ Diviser 2×30'", color:"#fd79a8", hint:"Cliquez sur un créneau 1h pour le couper en deux créneaux de 30 min." },
+
     { key:"addPlayer", label:"➕ Assigner",       color:"#a29bfe", hint:"Cliquez sur un créneau libre pour y assigner un joueur." },
     { key:"straps",    label:"🩹 Straps",          color:"#ff7043", hint:"Cliquez sur un créneau pour ouvrir/fermer un strap de 30 min. Couleur orange unique." },
     { key:"history",   label:"🗂 Historique",     color:"#8b949e", hint:"Consultez tous les soins passés." },
